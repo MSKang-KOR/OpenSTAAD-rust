@@ -1,5 +1,3 @@
-use std::result;
-
 use anyhow::{Context, Error, Ok as anyOk, Result, bail};
 use windows::Win32::System::{
     Com::IDispatch,
@@ -7,7 +5,7 @@ use windows::Win32::System::{
 };
 use windows_core::PWSTR;
 
-use crate::staad::process::invoke_method_on_object;
+use crate::staad::process::{get_dispatch, invoke_method_on_object};
 
 #[derive(Debug)]
 pub struct Geometry {
@@ -37,22 +35,23 @@ impl Geometry {
     }
 
     pub fn get_last_node_no(&self) -> Result<()> {
-        let params: [VARIANT; 0] = [];
-        println!("1");
-        let _variant = unsafe {
+        let params = [];
+        let result_variant = unsafe {
             invoke_method_on_object(self.dispatch.as_ref().unwrap(), "GetLastNodeNo", &params)
         };
-        println!("2");
-
-        if let Ok(v) = _variant {
-            let a = unsafe {
-                VariantToStringAlloc(&v as *const VARIANT)
+        let check_dipatch =
+            unsafe { get_dispatch(self.dispatch.as_ref().unwrap(), "GetLastNodeNo", &params) };
+        println!("{:#?}", check_dipatch);
+        
+        if let Ok(var) = result_variant {
+            let node_no = unsafe {
+                VariantToStringAlloc(&var as *const VARIANT)
                     .unwrap()
                     .to_string()
             };
-            println!("{:#?}", a);
+            println!("{:#?}", node_no);
         }
-        anyOk(())
+        Ok(())
     }
 }
 

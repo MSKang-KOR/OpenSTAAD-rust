@@ -31,29 +31,29 @@ async fn main() {
 
                 let __ = geometry.get_last_node_no();
 
-                let vars = VARIANT::default();
-                // vars.Anonymous.Anonymous.vt = VT_EMPTY;
+                // let vars = VARIANT::default();
+                // // vars.Anonymous.Anonymous.vt = VT_EMPTY;
 
-                unsafe {
-                    let psa = SafeArrayCreateVector(VT_I4, 0, 0); // low bound = 0, length = 0
-                    if psa.is_null() {
-                        panic!("Failed to create SAFEARRAY");
-                    }
+                // unsafe {
+                //     let psa = SafeArrayCreateVector(VT_I4, 0, 0); // low bound = 0, length = 0
+                //     if psa.is_null() {
+                //         panic!("Failed to create SAFEARRAY");
+                //     }
 
-                    // VARIANT 구조체를 생성하여 SAFEARRAY를 포함시킵니다.
-                    let variant = VARIANT {
-                        Anonymous: VARIANT_0 {
-                            Anonymous: ManuallyDrop::new(VARIANT_0_0 {
-                                vt: (VT_ARRAY | VT_I4),
-                                wReserved1: 0,
-                                wReserved2: 0,
-                                wReserved3: 0,
-                                Anonymous: VARIANT_0_0_0 { parray: psa },
-                            }),
-                        },
-                    };
-                    let _ = geometry.get_node_list(variant);
-                }
+                //     // VARIANT 구조체를 생성하여 SAFEARRAY를 포함시킵니다.
+                //     let variant = VARIANT {
+                //         Anonymous: VARIANT_0 {
+                //             Anonymous: ManuallyDrop::new(VARIANT_0_0 {
+                //                 vt: (VT_ARRAY | VT_I4),
+                //                 wReserved1: 0,
+                //                 wReserved2: 0,
+                //                 wReserved3: 0,
+                //                 Anonymous: VARIANT_0_0_0 { parray: psa },
+                //             }),
+                //         },
+                //     };
+                //     let _ = geometry.get_node_list(variant);
+                // }
             }
         }
     };
