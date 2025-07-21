@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::{Context, Ok as anyOk, Result, anyhow};
+use anyhow::{Context, Error, Ok as anyOk, Result, anyhow, bail};
 use windows::{
     Win32::System::{
         Com::{
@@ -8,7 +8,7 @@ use windows::{
             DISPATCH_METHOD, DISPPARAMS, EXCEPINFO, IDispatch, IDispatch_Impl,
         },
         Ole::GetActiveObject,
-        Variant::{VARIANT, VariantToStringAlloc},
+        Variant::{self, VARIANT, VariantToStringAlloc},
     },
     core::{GUID, HSTRING, IUnknown, Interface, PCWSTR, implement},
 };
@@ -23,21 +23,21 @@ use windows::{
 // STAAD 백그라운드 실행 및 제어 클래스
 pub struct StaadProcess {
     // staad_process: Option<Child>,
-    staad_app: Option<IDispatch>,
-    // geometry: Option<IDispatch>,
+    pub root: Option<IDispatch>,
+    pub geometry: Option<IDispatch>,
     // analysis: Option<IDispatch>,
     // post: Option<IDispatch>,
     // property: Option<IDispatch>,
     // load: Option<IDispatch>,
-    staad_path: String,
+    pub staad_path: String,
 }
 
 impl StaadProcess {
     pub fn new(staad_path: &str) -> Self {
         StaadProcess {
             // staad_process: None,
-            staad_app: None,
-            // geometry: None,
+            root: None,
+            geometry: None,
             // analysis: None,
             // post: None,
             // property: None,
@@ -117,8 +117,14 @@ impl StaadProcess {
                 }
                 _ => {
                     if let Some(_ppunk) = ppunk {
-                        let staad_app = _ppunk.cast::<IDispatch>().unwrap();
-                        self.staad_app = Some(staad_app);
+                        let root = _ppunk.cast::<IDispatch>().unwrap();
+
+                        let empty_params: [VARIANT; 0] = [];
+                        if let Ok(v) = get_dispatch(&root, "Geometry", &empty_params) {
+                            self.geometry = Some(v);
+                        };
+
+                        self.root = Some(root);
                     }
                 }
             };
@@ -130,80 +136,37 @@ impl StaadProcess {
         }
     }
 
-    pub fn test_code(&mut self) -> Result<()> {
-        let app = self
-            .staad_app
-            .as_ref()
-            .context("STAAD 애플리케이션이 초기화되지 않았습니다")?;
-        let params = [];
-        match unsafe { self.invoke_method_on_object(app, "Geometry", &params) } {
-            Ok(v) => {
-                if let Ok(dispatch_obj) = IDispatch::try_from(&v) {
-                    let params = [];
-                    match unsafe {
-                        self.invoke_method_on_object(&dispatch_obj, "GetLastNodeNo", &params)
-                    } {
-                        Ok(v) => {
-                            let a = unsafe {
-                                VariantToStringAlloc(&v as *const VARIANT)
-                                    .unwrap()
-                                    .to_string()
-                            };
-                            println!("{:#?}", a);
-                        }
-                        _ => {}
-                    }
-                };
-            }
-            Err(e) => {
-                println!("{:#?}", e);
-            }
-        };
-        anyOk(())
-    }
-
-    unsafe fn invoke_method_on_object(
-        &self,
-        object: &IDispatch,
-        method_name: &str,
-        params: &[VARIANT],
-    ) -> Result<VARIANT> {
-        let name = &PCWSTR::from_raw(HSTRING::from(method_name).as_ptr()) as *const PCWSTR;
-        let mut dispid = 0;
-        let iid = &GUID::default() as *const GUID;
-
-        unsafe {
-            object
-                .GetIDsOfNames(iid, name, 1, 0, &mut dispid)
-                .context("Method ID 가져오기 실패")
-        }?;
-
-        let mut result = VARIANT::default();
-        let mut excepinfo = EXCEPINFO::default();
-
-        let dispparams = DISPPARAMS {
-            rgvarg: params.as_ptr() as *mut VARIANT,
-            cArgs: params.len() as u32,
-            ..Default::default()
-        };
-
-        unsafe {
-            object
-                .Invoke(
-                    dispid,
-                    iid,
-                    0,
-                    DISPATCH_METHOD,
-                    &dispparams,
-                    Some(&mut result),
-                    Some(&mut excepinfo),
-                    None,
-                )
-                .context("Method 실행 실패")
-        }?;
-
-        anyOk(result)
-    }
+    // pub fn test_code(&mut self) -> Result<()> {
+    //     let app = self
+    //         .root
+    //         .as_ref()
+    //         .context("STAAD 애플리케이션이 초기화되지 않았습니다")?;
+    //     let params = [];
+    //     match unsafe { invoke_method_on_object(app, "Geometry", &params) } {
+    //         Ok(v) => {
+    //             if let Ok(dispatch_obj) = IDispatch::try_from(&v) {
+    //                 let params = [];
+    //                 match unsafe {
+    //                     invoke_method_on_object(&dispatch_obj, "GetLastNodeNo", &params)
+    //                 } {
+    //                     Ok(v) => {
+    //                         let a = unsafe {
+    //                             VariantToStringAlloc(&v as *const VARIANT)
+    //                                 .unwrap()
+    //                                 .to_string()
+    //                         };
+    //                         println!("{:#?}", a);
+    //                     }
+    //                     _ => {}
+    //                 }
+    //             };
+    //         }
+    //         Err(e) => {
+    //             println!("{:#?}", e);
+    //         }
+    //     };
+    //     anyOk(())
+    // }
 }
 
 // 리소스 정리
@@ -221,5 +184,70 @@ impl Drop for StaadProcess {
         unsafe {
             CoUninitialize();
         }
+    }
+}
+
+pub unsafe fn invoke_method_on_object(
+    object: &IDispatch,
+    method_name: &str,
+    params: &[VARIANT],
+) -> Result<VARIANT> {
+    let name = &PCWSTR::from_raw(HSTRING::from(method_name).as_ptr()) as *const PCWSTR;
+    let mut dispid = 0;
+    let iid = &GUID::default() as *const GUID;
+
+    unsafe {
+        object
+            .GetIDsOfNames(iid, name, 1, 0, &mut dispid)
+            .context("Method ID 가져오기 실패")
+    };
+
+    let mut result = VARIANT::default();
+    let mut excepinfo = EXCEPINFO::default();
+
+    let dispparams = DISPPARAMS {
+        rgvarg: params.as_ptr() as *mut VARIANT,
+        cArgs: params.len() as u32,
+        ..Default::default()
+    };
+
+    unsafe {
+        object
+            .Invoke(
+                dispid,
+                iid,
+                0,
+                DISPATCH_METHOD,
+                &dispparams,
+                Some(&mut result),
+                Some(&mut excepinfo),
+                None,
+            )
+            .context("Method 실행 실패")
+    };
+    anyOk(result)
+
+    // let mut _dispatch = None;
+    // if let Ok(v) = IDispatch::try_from(&result) {
+    //     _dispatch = Some(v);
+    // }
+    // _dispatch
+}
+
+pub unsafe fn get_dispatch(
+    object: &IDispatch,
+    method_name: &str,
+    params: &[VARIANT],
+) -> Result<IDispatch, Error> {
+    let result: Result<VARIANT, Error> =
+        unsafe { invoke_method_on_object(&object, &method_name, &params) };
+    match result {
+        Ok(var) => {
+            match IDispatch::try_from(&var) {
+                Ok(dispatch) => anyOk(dispatch), // 성공 시 Ok로 감싸서 반환
+                Err(_) => bail!("VARIANT을 IDispatch로 변환할 수 없습니다"),
+            }
+        }
+        Err(e) => bail!("메서드 호출 실패: {}", e),
     }
 }
