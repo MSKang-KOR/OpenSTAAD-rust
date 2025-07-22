@@ -1,15 +1,6 @@
 mod staad;
-use std::mem::ManuallyDrop;
-
+use crate::staad::geometry::Geometry;
 use staad::process::StaadProcess;
-use windows::Win32::System::{
-    Ole::{SafeArrayCreate, SafeArrayCreateVector},
-    Variant::{
-        VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_ARRAY, VT_EMPTY, VT_I4, VariantInit,
-    },
-};
-
-use crate::staad::geometry::{self, Geometry};
 
 #[tokio::main]
 async fn main() {
@@ -26,34 +17,90 @@ async fn main() {
             if let Some(root_dispatch) = root {
                 println!("root id: {:?}", root_dispatch);
 
-                let geometry = Geometry::new(&root_dispatch);
-                println!("geometry: {:?}", geometry);
+                if let Some(geo_dispatch) = _staad.geometry.as_ref() {
+                    let geometry = Geometry::new(geo_dispatch);
+                    println!("geometry: {:?}", geometry);
 
-                let __ = geometry.get_last_node_no();
+                    let node_no = geometry.get_last_node_no();
+                    println!("{:#?}", node_no);
 
-                // let vars = VARIANT::default();
-                // // vars.Anonymous.Anonymous.vt = VT_EMPTY;
+                    // let _ = geometry.get_node_list();
+                    println!("\n=== Testing different approaches to get node list ===");
 
-                // unsafe {
-                //     let psa = SafeArrayCreateVector(VT_I4, 0, 0); // low bound = 0, length = 0
-                //     if psa.is_null() {
-                //         panic!("Failed to create SAFEARRAY");
-                //     }
+                    // 2. Property 방식 시도
+                    println!("\n2. Trying property approach:");
+                    match geometry.get_node_list_as_property() {
+                        Ok(nodes) => {
+                            if !nodes.is_empty() {
+                                println!(
+                                    "✓ Property approach succeeded with {} nodes",
+                                    nodes.len()
+                                );
+                                return; // 성공하면 여기서 종료
+                            } else {
+                                println!("△ Property approach returned empty list");
+                            }
+                        }
+                        Err(e) => {
+                            println!("✗ Property approach failed: {}", e);
+                        }
+                    }
 
-                //     // VARIANT 구조체를 생성하여 SAFEARRAY를 포함시킵니다.
-                //     let variant = VARIANT {
-                //         Anonymous: VARIANT_0 {
-                //             Anonymous: ManuallyDrop::new(VARIANT_0_0 {
-                //                 vt: (VT_ARRAY | VT_I4),
-                //                 wReserved1: 0,
-                //                 wReserved2: 0,
-                //                 wReserved3: 0,
-                //                 Anonymous: VARIANT_0_0_0 { parray: psa },
-                //             }),
-                //         },
-                //     };
-                //     let _ = geometry.get_node_list(variant);
-                // }
+                    // 3. 대안적 VARIANT 구성 방식
+                    println!("\n3. Trying alternative VARIANT construction:");
+                    match geometry.get_node_list_alternative() {
+                        Ok(nodes) => {
+                            if !nodes.is_empty() {
+                                println!(
+                                    "✓ Alternative approach succeeded with {} nodes",
+                                    nodes.len()
+                                );
+                                return;
+                            } else {
+                                println!("△ Alternative approach returned empty list");
+                            }
+                        }
+                        Err(e) => {
+                            println!("✗ Alternative approach failed: {}", e);
+                        }
+                    }
+
+                    // 4. Raw dispatch 방식
+                    println!("\n4. Trying raw dispatch approach:");
+                    match geometry.get_node_list_raw_dispatch() {
+                        Ok(nodes) => {
+                            if !nodes.is_empty() {
+                                println!("✓ Raw dispatch succeeded with {} nodes", nodes.len());
+                                return;
+                            } else {
+                                println!("△ Raw dispatch returned empty list");
+                            }
+                        }
+                        Err(e) => {
+                            println!("✗ Raw dispatch failed: {}", e);
+                        }
+                    }
+
+                    // 5. 원래 방식도 다시 시도
+                    println!("\n5. Trying original approach:");
+                    match geometry.get_node_list() {
+                        Ok(nodes) => {
+                            if !nodes.is_empty() {
+                                println!(
+                                    "✓ Original approach succeeded with {} nodes",
+                                    nodes.len()
+                                );
+                            } else {
+                                println!("△ Original approach returned empty list");
+                            }
+                        }
+                        Err(e) => {
+                            println!("✗ Original approach failed: {}", e);
+                        }
+                    }
+
+                    println!("\n=== All approaches completed ===");
+                }
             }
         }
     };
