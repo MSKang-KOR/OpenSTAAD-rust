@@ -1,16 +1,16 @@
-use std::time::Duration;
+use std::{mem::ManuallyDrop, ptr::null_mut, time::Duration};
 
 use anyhow::{Context, Error, Ok as anyOk, Result, anyhow, bail};
 use windows::{
     Win32::System::{
         Com::{
             CLSIDFromProgID, COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize,
-            DISPATCH_METHOD, DISPPARAMS, EXCEPINFO, IDispatch, IDispatch_Impl,
+            DISPATCH_METHOD, DISPATCH_PROPERTYGET, DISPPARAMS, EXCEPINFO, IDispatch,
         },
         Ole::GetActiveObject,
-        Variant::{self, VARIANT, VariantToStringAlloc},
+        Variant::VARIANT,
     },
-    core::{GUID, HSTRING, IUnknown, Interface, PCWSTR, implement},
+    core::{GUID, HSTRING, IUnknown, Interface, PCWSTR},
 };
 
 // #[implement(IDispatch)]
@@ -119,8 +119,8 @@ impl StaadProcess {
                     if let Some(_ppunk) = ppunk {
                         let root = _ppunk.cast::<IDispatch>().unwrap();
 
-                        let empty_params: [VARIANT; 0] = [];
-                        if let Ok(v) = get_dispatch(&root, "Geometry", &empty_params) {
+                        let empty_params: &mut [VARIANT; 0] = &mut [];
+                        if let Ok(v) = get_dispatch(&root, "Geometry", empty_params) {
                             self.geometry = Some(v);
                         };
 
@@ -187,55 +187,99 @@ impl Drop for StaadProcess {
     }
 }
 
-pub unsafe fn invoke_method_on_object(
+pub unsafe fn invoke_method_with_result(
     object: &IDispatch,
     method_name: &str,
-    params: &[VARIANT],
+    params: &mut [VARIANT],
 ) -> Result<VARIANT> {
     let name = &PCWSTR::from_raw(HSTRING::from(method_name).as_ptr()) as *const PCWSTR;
     let mut dispid = 0;
     let iid = &GUID::default() as *const GUID;
 
     unsafe {
-        object
+        let _ = object
             .GetIDsOfNames(iid, name, 1, 0, &mut dispid)
-            .context("Method ID 가져오기 실패")
+            .context("Method ID 가져오기 실패");
     };
 
     let mut result = VARIANT::default();
     let mut excepinfo = EXCEPINFO::default();
 
     let dispparams = DISPPARAMS {
-        rgvarg: params.as_ptr() as *mut VARIANT,
+        rgvarg: params.as_mut_ptr(),
         cArgs: params.len() as u32,
-        ..Default::default()
+        cNamedArgs: 0,
+        rgdispidNamedArgs: null_mut(),
+        // ..Default::default()
     };
 
     unsafe {
-        object
+        let hresult = object
+            .Invoke(
+                dispid,
+                iid,
+                0,
+                DISPATCH_METHOD | DISPATCH_PROPERTYGET,
+                &dispparams,
+                Some(&mut result),
+                Some(&mut excepinfo),
+                None,
+            )
+            .context("Method 실행 실패");
+    };
+    anyOk(result)
+}
+
+pub unsafe fn invoke_method_without_result(
+    object: &IDispatch,
+    method_name: &str,
+    params: &mut [VARIANT],
+) -> Result<()> {
+    let name = &PCWSTR::from_raw(HSTRING::from(method_name).as_ptr()) as *const PCWSTR;
+    let mut dispid = 0;
+    let iid = &GUID::default() as *const GUID;
+
+    unsafe {
+        let _ = object
+            .GetIDsOfNames(iid, name, 1, 0, &mut dispid)
+            .context("Method ID 가져오기 실패");
+    };
+
+    let mut excepinfo = EXCEPINFO::default();
+
+    let dispparams = DISPPARAMS {
+        rgvarg: params.as_mut_ptr(),
+        cArgs: params.len() as u32,
+        cNamedArgs: 0,
+        rgdispidNamedArgs: null_mut(),
+        // ..Default::default()
+    };
+    unsafe {
+        let _ = object
             .Invoke(
                 dispid,
                 iid,
                 0,
                 DISPATCH_METHOD,
                 &dispparams,
-                Some(&mut result),
+                None,
                 Some(&mut excepinfo),
                 None,
             )
-            .context("Method 실행 실패")
+            .context("Method 실행 실패");
     };
+    println!("asdasdf");
 
-    anyOk(result)
+    anyOk(())
 }
 
 pub unsafe fn get_dispatch(
     object: &IDispatch,
     method_name: &str,
-    params: &[VARIANT],
+    params: &mut [VARIANT],
 ) -> Result<IDispatch, Error> {
     let result: Result<VARIANT, Error> =
-        unsafe { invoke_method_on_object(&object, &method_name, &params) };
+        unsafe { invoke_method_with_result(object, method_name, params) };
     match result {
         Ok(var) => {
             match IDispatch::try_from(&var) {

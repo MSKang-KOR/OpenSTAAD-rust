@@ -253,6 +253,12 @@ dependencies = [
 [[package]]
 name = "test_staad"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tokio",
+ "windows",
+ "windows-core",
+]
 
 [[package]]
 name = "tokio"
