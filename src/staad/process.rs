@@ -11,16 +11,12 @@ use windows::{
     core::{GUID, HSTRING, IUnknown, Interface, PCWSTR},
 };
 
-use crate::staad::{
-    command::root::Command, geometry::root::Geometry, root::Root, utils::get_dispatch,
-};
+use crate::staad::root::Root;
 
 // STAAD 백그라운드 실행 및 제어 클래스
 pub struct StaadProcess {
     // pub root: Option<IDispatch>,
     pub root: Option<Root>,
-    pub geometry: Option<Geometry>,
-    pub command: Option<Command>,
     pub staad_path: String,
 }
 
@@ -28,8 +24,6 @@ impl StaadProcess {
     pub fn new(staad_path: &str) -> Self {
         StaadProcess {
             root: None,
-            geometry: None,
-            command: None,
             staad_path: staad_path.to_string(),
         }
     }
@@ -108,12 +102,6 @@ impl StaadProcess {
                         let root_dispatch = _ppunk.cast::<IDispatch>();
                         if let Ok(v) = root_dispatch {
                             self.root = Some(Root::new(&v));
-                            if let Ok(dispatch) = get_dispatch(&v, "Geometry", &mut []) {
-                                self.geometry = Some(Geometry::new(dispatch))
-                            };
-                            if let Ok(dispatch) = get_dispatch(&v, "Command", &mut []) {
-                                self.command = Some(Command::new(dispatch))
-                            };
                         };
                     }
                 }

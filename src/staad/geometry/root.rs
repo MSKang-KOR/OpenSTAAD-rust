@@ -1,17 +1,18 @@
 use windows::Win32::System::Com::IDispatch;
 
-use crate::staad::node::Node;
+use crate::staad::{node::Node, root::Root, utils::get_dispatch};
 
 #[derive(Debug)]
-pub struct Geometry {
-    pub dispatch: Option<IDispatch>,
+pub struct Geometry<'a> {
+    pub root: &'a Root,
+    pub dispatch: IDispatch,
 }
 
-impl Geometry {
-    pub fn new(dispatch: IDispatch) -> Self {
-        Self {
-            dispatch: Some(dispatch),
-        }
+impl<'a> Geometry<'a> {
+    pub fn new(root: &'a Root) -> Self {
+        let dispatch =
+            unsafe { get_dispatch(root.dispatch.as_ref().unwrap(), "Geometry", &mut []).unwrap() };
+        Self { root, dispatch }
     }
 
     pub fn node(&self) -> Node {

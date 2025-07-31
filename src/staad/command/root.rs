@@ -1,20 +1,33 @@
-use windows::Win32::System::Com::IDispatch;
+use windows::Win32::System::{Com::IDispatch, Variant::VARIANT};
 
-use crate::staad::{analysis::Analysis, node::Node};
+use crate::staad::{root::Root, utils::{get_dispatch, invoke_method_with_result}};
+use anyhow::{Error as anyErr, Ok as anyOk, Result, bail};
 
 #[derive(Debug)]
-pub struct Command {
-    pub dispatch: Option<IDispatch>,
+pub struct Command<'a> {
+    pub root: &'a Root,
+    pub dispatch: IDispatch,
 }
 
-impl Command {
-    pub fn new(dispatch: IDispatch) -> Self {
-        Self {
-            dispatch: Some(dispatch),
-        }
+impl<'a> Command<'a> {
+    pub fn new(root: &'a Root) -> Self {
+        let dispatch =
+            unsafe { get_dispatch(root.dispatch.as_ref().unwrap(), "Command", &mut []).unwrap() };
+        Self { root, dispatch }
     }
 
-    pub fn analysis(&self) -> Analysis {
-        Analysis::new(self)
+    pub async fn perform_analysis(&self, print_option: i32) -> Result<(), anyErr> {
+        unsafe {
+            let mut params = [VARIANT::from(print_option)];
+            let result_variant = invoke_method_with_result(
+                &self.dispatch,
+                "PerforAnalysis",
+                &mut params,
+            );
+            match result_variant {
+                Ok(_) => anyOk(()),
+                Err(e) => bail!("Error::Geometry::get_node_coordinates: {}", e),
+            }
+        }
     }
 }

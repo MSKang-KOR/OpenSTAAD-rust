@@ -68,8 +68,8 @@ pub unsafe fn get_dispatch(
     let result: ResultAny<VARIANT, anyErr> =
         unsafe { invoke_method_with_result(object, method_name, params) };
     match result {
-        Ok(var) => {
-            match IDispatch::try_from(&var) {
+        Ok(v) => {
+            match IDispatch::try_from(&v) {
                 Ok(dispatch) => Ok(dispatch), // 성공 시 Ok로 감싸서 반환
                 Err(_) => bail!("VARIANT을 IDispatch로 변환할 수 없습니다"),
             }

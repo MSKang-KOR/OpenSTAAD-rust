@@ -5,7 +5,10 @@ use windows::Win32::System::{
 };
 use windows_core::BSTR;
 
-use crate::staad::{utils::invoke_method_with_result, variant::variant_from_raw_pointer};
+use crate::staad::{
+    command::root::Command, design::root::Design, geometry::root::Geometry, output::root::Output,
+    utils::invoke_method_with_result, variant::variant_from_raw_pointer,
+};
 
 #[derive(Debug)]
 pub struct Root {
@@ -18,6 +21,18 @@ impl Root {
             dispatch: Some(dispatch.clone()),
         }
     }
+    pub fn command(&self) -> Command {
+        Command::new(self)
+    }
+    pub fn design(&self) -> Design {
+        Design::new(self)
+    }
+    pub fn geometry(&self) -> Geometry {
+        Geometry::new(self)
+    }
+    pub fn output(&self) -> Output {
+        Output::new(self)
+    }
 
     pub async fn analyze_ex(&self, silent: i32, hidden: i32, wait: i32) -> Result<i32, anyErr> {
         let mut params = [
@@ -29,8 +44,8 @@ impl Root {
             invoke_method_with_result(self.dispatch.as_ref().unwrap(), "AnalyzeEx", &mut params)
         };
         match result_variant {
-            Ok(var) => {
-                let status = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
+            Ok(v) => {
+                let status = unsafe { VariantToInt32(&v as *const VARIANT).unwrap() };
                 anyOk(status)
             }
             Err(e) => bail!("Error::Root::analyze_ex: {}", e),
@@ -52,8 +67,8 @@ impl Root {
             )
         };
         match result_variant {
-            Ok(var) => unsafe {
-                let status = VariantToInt32(&var as *const VARIANT).unwrap();
+            Ok(_v) => unsafe {
+                let status = VariantToInt32(&_v as *const VARIANT).unwrap();
                 let id = *sz_proj_id;
                 let name = &*sz_name;
                 anyOk((status, id, name.to_string()))
@@ -72,7 +87,7 @@ impl Root {
             invoke_method_with_result(self.dispatch.as_ref().unwrap(), "GetSTAADFile", &mut params)
         };
         match result_variant {
-            Ok(var) => unsafe {
+            Ok(_v) => unsafe {
                 let path = &*path_bstr;
                 anyOk(path.to_string())
             },
@@ -91,7 +106,7 @@ impl Root {
             )
         };
         match result_variant {
-            Ok(var) => unsafe {
+            Ok(_v) => unsafe {
                 let path = &*path_bstr;
                 anyOk(path.to_string())
             },
@@ -108,8 +123,8 @@ impl Root {
             )
         };
         match result_variant {
-            Ok(var) => unsafe {
-                let existing_value = VariantToInt32(&var as *const VARIANT).unwrap();
+            Ok(_v) => unsafe {
+                let existing_value = VariantToInt32(&_v as *const VARIANT).unwrap();
                 anyOk(existing_value)
             },
             Err(e) => bail!("Error::Root::set_silent_mode: {}", e),
@@ -121,8 +136,8 @@ impl Root {
             invoke_method_with_result(self.dispatch.as_ref().unwrap(), "GetBaseUnit", &mut [])
         };
         match result_variant {
-            Ok(var) => {
-                let base_unit = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
+            Ok(v) => {
+                let base_unit = unsafe { VariantToInt32(&v as *const VARIANT).unwrap() };
                 anyOk(base_unit)
             }
             Err(e) => bail!("Error::Root::get_base_unit: {}", e),
