@@ -10,7 +10,7 @@ use std::ffi::c_void;
 use windows::Win32::System::{
     Com::{IDispatch, SAFEARRAY},
     Ole::{SafeArrayCreateVector, SafeArrayGetElement},
-    Variant::{VariantToInt32, VariantToStringAlloc, VARIANT, VT_R8},
+    Variant::{VARIANT, VT_R8, VariantToInt32, VariantToStringAlloc},
 };
 use windows_core::BSTR;
 
@@ -27,6 +27,28 @@ impl<'a> Output<'a> {
         Self { root, dispatch }
     }
 
+    // ************************* Analysis Results *************************
+    /// Returns boolean whether analysis results available or not.
+    /// # Returns
+    /// * Boolean (TRUE/FALSE) whether analysis completed or not.
+    pub fn are_results_available(&self) -> Result<bool, anyErr> {
+        let result_variant = unsafe {
+            invoke_method_with_result(
+                &self.dispatch,
+                "AreResultsAvailable",
+                &mut [],
+            )
+        };
+        match result_variant {
+            Ok(_v) => {
+                let available = unsafe { VariantToInt32(&_v as *const VARIANT).unwrap() > 0 };
+                anyOk(available)
+            }
+            Err(e) => bail!("Error::Output::are_results_available: {}", e),
+        }
+    }
+
+    // ************************* Design Results *************************
     /// Returns the design section name for specified member.
     /// # Parameters
     /// * `[in] varnBeamNo` Member number ID.
@@ -41,8 +63,8 @@ impl<'a> Output<'a> {
                 &mut params,
             );
             match result_variant {
-                Ok(v) => {
-                    let section_name = VariantToStringAlloc(&v as *const VARIANT)
+                Ok(_v) => {
+                    let section_name = VariantToStringAlloc(&_v as *const VARIANT)
                         .context("converting section name")?
                         .to_string()?;
                     anyOk(section_name)
@@ -67,8 +89,8 @@ impl<'a> Output<'a> {
                 &mut params,
             );
             match result_variant {
-                Ok(v) => {
-                    let success = VariantToInt32(&v as *const VARIANT).unwrap() > 0;
+                Ok(_v) => {
+                    let success = VariantToInt32(&_v as *const VARIANT).unwrap() > 0;
                     anyOk((success, *ratio_ptr))
                 }
                 Err(e) => bail!(
@@ -94,8 +116,8 @@ impl<'a> Output<'a> {
                 &mut params,
             );
             match result_variant {
-                Ok(v) => {
-                    let success = VariantToInt32(&v as *const VARIANT).unwrap() > 0;
+                Ok(_v) => {
+                    let success = VariantToInt32(&_v as *const VARIANT).unwrap() > 0;
                     anyOk((success, *ratio_ptr))
                 }
                 Err(e) => bail!(
@@ -122,8 +144,8 @@ impl<'a> Output<'a> {
             let result_variant =
                 invoke_method_with_result(&self.dispatch, "GetMemberSteelDesignRatio", &mut params);
             match result_variant {
-                Ok(v) => {
-                    let success = VariantToInt32(&v as *const VARIANT).unwrap() > 0;
+                Ok(_v) => {
+                    let success = VariantToInt32(&_v as *const VARIANT).unwrap() > 0;
                     anyOk((success, *ratio_ptr))
                 }
                 Err(e) => bail!("Error::Output::get_member_steel_design_ratio: {}", e),
@@ -198,8 +220,8 @@ impl<'a> Output<'a> {
             );
 
             match result_variant {
-                Ok(v) => {
-                    let success = VariantToInt32(&v as *const VARIANT).unwrap() > 0;
+                Ok(_v) => {
+                    let success = VariantToInt32(&_v as *const VARIANT).unwrap() > 0;
 
                     let design_code = (&*design_code_ptr).to_string();
                     let design_status = (&*design_status_ptr).to_string();
@@ -260,8 +282,8 @@ impl<'a> Output<'a> {
                 &mut params,
             );
             match result_variant {
-                Ok(v) => {
-                    let success = VariantToInt32(&v as *const VARIANT).unwrap() > 0;
+                Ok(_v) => {
+                    let success = VariantToInt32(&_v as *const VARIANT).unwrap() > 0;
                     anyOk((success, *ratio_ptr))
                 }
                 Err(e) => bail!(
@@ -297,8 +319,8 @@ impl<'a> Output<'a> {
                 &mut params,
             );
             match result_variant {
-                Ok(v) => {
-                    let success = VariantToInt32(&v as *const VARIANT).unwrap() > 0;
+                Ok(_v) => {
+                    let success = VariantToInt32(&_v as *const VARIANT).unwrap() > 0;
                     anyOk((success, *ratio_ptr))
                 }
                 Err(e) => bail!(
@@ -349,8 +371,8 @@ impl<'a> Output<'a> {
             );
 
             match result_variant {
-                Ok(v) => {
-                    let success = VariantToInt32(&v as *const VARIANT).unwrap() > 0;
+                Ok(_v) => {
+                    let success = VariantToInt32(&_v as *const VARIANT).unwrap() > 0;
 
                     let design_code = (&*design_code_ptr).to_string();
                     let design_status = (&*design_status_ptr).to_string();
@@ -384,8 +406,8 @@ impl<'a> Output<'a> {
             invoke_method_with_result(&self.dispatch, "GetSteelDesignParameterBlockCount", &mut [])
         };
         match result_variant {
-            Ok(v) => {
-                let count = unsafe { VariantToInt32(&v as *const VARIANT).unwrap() };
+            Ok(_v) => {
+                let count = unsafe { VariantToInt32(&_v as *const VARIANT).unwrap() };
                 anyOk(count)
             }
             Err(e) => bail!(
@@ -417,8 +439,8 @@ impl<'a> Output<'a> {
                 &mut params,
             );
             match result_variant {
-                Ok(v) => {
-                    let success = VariantToInt32(&v as *const VARIANT).unwrap() > 0;
+                Ok(_v) => {
+                    let success = VariantToInt32(&_v as *const VARIANT).unwrap() > 0;
                     let name = (&*name_ptr).to_string();
                     anyOk((success, name))
                 }
@@ -442,8 +464,8 @@ impl<'a> Output<'a> {
             )
         };
         match result_variant {
-            Ok(v) => {
-                let available = unsafe { VariantToInt32(&v as *const VARIANT).unwrap() > 0 };
+            Ok(_v) => {
+                let available = unsafe { VariantToInt32(&_v as *const VARIANT).unwrap() > 0 };
                 anyOk(available)
             }
             Err(e) => bail!(

@@ -1,10 +1,14 @@
 mod staad;
 
 use staad::process::StaadProcess;
+use windows::Win32::System::Com::CoUninitialize;
 
 use std::{path::Path, thread::sleep, time::Duration};
 
-use crate::staad::{geometry::root::Geometry, notify::watch_file_background, root::Root};
+use crate::staad::{
+    design::root::Design, geometry::root::Geometry, notify::watch_file_background,
+    output::root::Output, property::root::Property, root::Root, section::Section,
+};
 
 #[tokio::main]
 async fn main() {
@@ -13,6 +17,7 @@ async fn main() {
     let mut process = StaadProcess::new("");
     match process.start().await {
         Err(e) => {
+            unsafe { CoUninitialize() };
             println!("{:#?}", e)
         }
         _ => {
@@ -21,17 +26,52 @@ async fn main() {
                 let base_unit = root.get_base_unit().unwrap();
                 println!("base unit: {:#?}", base_unit);
 
-                // let _root = process.root.as_ref().unwrap();
+                let _root = process.root.as_ref().unwrap();
                 // test_root_methods(_root);
 
                 let _geometry = root.geometry();
-                test_geometry_node_methods(&_geometry, base_unit);
+                // test_geometry_node_methods(&_geometry, base_unit);
+
+                let _design = root.design();
+                // test_design_methods(&_design);
+
+                let _output = root.output();
+                // test_output_methods(&_output);
 
                 // let _command = root.command();
-                // let _design = root.design();
-                // let _output = root.output();
+
+                let _property = root.property();
+                // test_section_methods(&_property);
             }
         }
+    }
+    unsafe { CoUninitialize() };
+}
+
+fn test_root_methods(root: &Root) {
+    let set_silent_mode_result = root.set_silent_mode(1);
+    match set_silent_mode_result {
+        Ok(v) => println!("set_silent_mode_result success: {:#?}", v),
+        Err(e) => println!("set_silent_mode_result error: {:#?}", e),
+    }
+
+    let analyze_ex_result = root.analyze_ex(0, 0, 0);
+    match analyze_ex_result {
+        Ok(v) => {
+            println!("analyze_ex_result success: {:#?}", v);
+            let get_staad_file_result = root.get_staad_file(true);
+            match get_staad_file_result {
+                Ok(v) => {
+                    println!("get_staad_file_result success: {:#?}", v);
+                    let std_path = Path::new(&v);
+                    let log_path = std_path.with_extension("log");
+                    let _watcher_handle = watch_file_background(&log_path);
+                    _watcher_handle.join().unwrap();
+                }
+                Err(e) => println!("get_staad_file_result error: {:#?}", e),
+            }
+        }
+        Err(e) => println!("analyze_ex_result error: {:#?}", e),
     }
 }
 
@@ -152,41 +192,35 @@ fn test_geometry_node_methods(geometry: &Geometry, base_unit: i32) {
     }
 }
 
-async fn test_root_methods(root: &Root) {
-    let set_silent_mode_result = root.set_silent_mode(1);
-    match set_silent_mode_result {
-        Ok(v) => println!("set_silent_mode_result success: {:#?}", v),
-        Err(e) => println!("set_silent_mode_result error: {:#?}", e),
+fn test_output_methods(output: &Output) {
+    let are_results_available_result = output.are_results_available();
+    match are_results_available_result {
+        Ok(v) => println!("are_results_available_result success: {:#?}", v),
+        Err(e) => println!("are_results_available_result error: {:#?}", e),
     }
-
-    let analyze_ex_result = root.analyze_ex(1, 1, 0).await;
-    match analyze_ex_result {
-        Ok(v) => {
-            println!("analyze_ex_result success: {:#?}", v);
-        }
-        Err(e) => println!("analyze_ex_result error: {:#?}", e),
+    let get_member_steel_design_ratio_result = output.get_member_steel_design_ratio(1786);
+    match get_member_steel_design_ratio_result {
+        Ok(v) => println!("get_member_steel_design_ratio_result success: {:#?}", v),
+        Err(e) => println!("get_member_steel_design_ratio_result error: {:#?}", e),
     }
+}
 
-    let get_staad_file_result = root.get_staad_file(true);
-    match get_staad_file_result {
-        Ok(v) => {
-            println!("get_staad_file_result success: {:#?}", v);
-            let std_path = Path::new(&v);
-            let log_path = std_path.with_extension("log");
-            println!("log path: {:#?}", log_path);
-            // let log_handle = monitor_log_file_with_notify(log_path.to_str().unwrap()).await;
+fn test_design_methods(design: &Design) {
+    let brief_code = design.get_design_brief_code(1).unwrap();
+    println!("{:#?}", brief_code);
+    let get_member_design_parameters_result = design.get_member_design_parameters(1, 1);
+    match get_member_design_parameters_result {
+        Ok(v) => println!("get_member_design_parameters_result success: {:#?}", v),
+        Err(e) => println!("get_member_design_parameters_result error: {:#?}", e),
+    }
+}
 
-            let _watcher_handle = watch_file_background(&log_path);
+fn test_section_methods(property: &Property) {
+    let _section = property.section();
 
-            for i in 1..=5 {
-                sleep(Duration::from_secs(2));
-                println!("[MAIN] 메인 작업 진행 중... {}/5", i);
-            }
-
-            println!("End");
-
-            _watcher_handle.join().unwrap();
-        }
-        Err(e) => println!("get_staad_file_result error: {:#?}", e),
+    let get_beta_angle_result = _section.get_beta_angle(1272);
+    match get_beta_angle_result {
+        Ok(v) => println!("get_beta_angle_result success: {:#?}", v),
+        Err(e) => println!("get_beta_angle_result error: {:#?}", e),
     }
 }

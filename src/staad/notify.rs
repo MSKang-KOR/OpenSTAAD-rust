@@ -164,7 +164,7 @@ fn watch_file_internal(file_path: &str) -> Result<()> {
     watcher.watch(watch_path, RecursiveMode::NonRecursive)?;
 
     loop {
-        match rx.recv_timeout(Duration::from_secs(20)) {
+        match rx.recv_timeout(Duration::from_secs(10)) {
             Ok(event) => {
                 if handle_file_event(event?, &file_cache, file_path, &last_activity) {
                     println!("End::End of Analysis.");
@@ -175,7 +175,7 @@ fn watch_file_internal(file_path: &str) -> Result<()> {
                 let last_time = last_activity.lock().unwrap();
                 let elapsed = last_time.elapsed();
 
-                if elapsed >= Duration::from_secs(20) {
+                if elapsed >= Duration::from_secs(10) {
                     println!("End::Time out.");
                     break;
                 }

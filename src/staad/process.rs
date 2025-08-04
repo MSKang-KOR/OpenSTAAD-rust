@@ -4,7 +4,8 @@ use anyhow::{Context, Ok as anyOk, Result, anyhow};
 use windows::{
     Win32::System::{
         Com::{
-            CLSIDFromProgID, COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize, IDispatch,
+            CLSIDFromProgID, COINIT_APARTMENTTHREADED, CoCreateInstanceEx, CoInitializeEx,
+            CoUninitialize, IDispatch,
         },
         Ole::GetActiveObject,
     },
@@ -88,7 +89,6 @@ impl StaadProcess {
             // self.staad_app = Some(staad_app);
             let pv_reserved: Option<*mut core::ffi::c_void> = None;
             let mut ppunk: Option<IUnknown> = None;
-
             match GetActiveObject(
                 &clsid as *const GUID,
                 pv_reserved,
@@ -101,7 +101,7 @@ impl StaadProcess {
                     if let Some(_ppunk) = ppunk {
                         let root_dispatch = _ppunk.cast::<IDispatch>();
                         if let Ok(v) = root_dispatch {
-                            self.root = Some(Root::new(&v));
+                            self.root = Some(Root::new(v));
                         };
                     }
                 }

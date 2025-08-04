@@ -1,10 +1,9 @@
 use std::mem::ManuallyDrop;
 
 use windows::Win32::System::{
-    Com::SAFEARRAY,
+    Com::{IDispatch, SAFEARRAY},
     Variant::{
-        VARENUM, VARIANT, VARIANT_0_0, VARIANT_0_0_0, VT_ARRAY, VT_BSTR, VT_BYREF, VT_I4, VT_R8,
-        VT_SAFEARRAY,
+        VARENUM, VARIANT, VARIANT_0_0, VARIANT_0_0_0, VT_ARRAY, VT_BSTR, VT_BYREF, VT_DISPATCH, VT_I4, VT_PTR, VT_R8, VT_SAFEARRAY, VT_STORAGE
     },
 };
 use windows_core::BSTR;
@@ -33,6 +32,14 @@ impl VariantCreator for BSTR {
 
     fn get_prop(ptr: Self::PointerType) -> (VARENUM, VARIANT_0_0_0) {
         (VT_BYREF | VT_BSTR, VARIANT_0_0_0 { pbstrVal: ptr })
+    }
+}
+
+impl VariantCreator for Option<IDispatch> {
+    type PointerType = *mut Option<IDispatch>;
+
+    fn get_prop(ptr: Self::PointerType) -> (VARENUM, VARIANT_0_0_0) {
+        (VT_BYREF | VT_DISPATCH, VARIANT_0_0_0 { ppdispVal: ptr })
     }
 }
 

@@ -1,15 +1,17 @@
 use crate::staad::{
+    parameters::DesignParameters,
     root::Root,
     safe_array::safe_array_from_vec1d,
     utils::{get_dispatch, invoke_method_with_result},
     variant::{SafeArray, variant_from_raw_pointer},
 };
 
-use anyhow::{Error as anyErr, Ok as anyOk, Result, bail};
+use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
 use windows::Win32::System::{
-    Com::IDispatch,
+    Com::{CLSCTX_LOCAL_SERVER, CLSIDFromProgID, CoCreateInstance, IDispatch},
     Variant::{VARIANT, VariantToInt32},
 };
+use windows_core::{HSTRING, PCWSTR};
 
 #[derive(Debug)]
 pub struct Design<'a> {
@@ -179,6 +181,39 @@ impl<'a> Design<'a> {
                     anyOk(design_code)
                 }
                 Err(e) => bail!("Error::Design::get_design_brief_code: {}", e),
+            }
+        }
+    }
+
+    pub fn get_member_design_parameters(
+        &self,
+        brief_ref: i32,
+        member_no: i32,
+    ) -> Result<(i32, DesignParameters), anyErr> {
+        unsafe {
+            let clsid_str = PCWSTR::from_raw(HSTRING::from("StaadPro.MembSteelDgnParams").as_ptr());
+            let clsid = CLSIDFromProgID(clsid_str).context("CLSID 생성 실패")?;
+            let _instance: IDispatch = CoCreateInstance(&clsid, None, CLSCTX_LOCAL_SERVER)
+                .context("MembSteelDgnParams 인스턴스 생성 실패")?;
+            let instace_ptr: *mut Option<IDispatch> = &mut Some(_instance);
+
+            let mut params = [
+                variant_from_raw_pointer::<Option<IDispatch>>(instace_ptr),
+                VARIANT::from(member_no),
+                VARIANT::from(brief_ref),
+            ];
+            let result_variant =
+                invoke_method_with_result(&self.dispatch, "GetMemberDesignParameters", &mut params);
+
+            let params_dispatch = (*instace_ptr).as_ref().unwrap();
+            let design_params = DesignParameters::new(params_dispatch);
+
+            match result_variant {
+                Ok(v) => {
+                    let status = VariantToInt32(&v as *const VARIANT).unwrap();
+                    anyOk((status, design_params))
+                }
+                Err(e) => bail!("Error::Design::get_member_design_parameters: {}", e),
             }
         }
     }

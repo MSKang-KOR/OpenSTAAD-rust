@@ -1,0 +1,4 @@
+OpenSTAAD API에서 제공하는 메서드를 사용하기 위해서 rust언어로 스크립트를 작성했습니다.
+첫번 째 클립보드에 있는 OpenSTAAD API docs를 참고하여,
+두번 째 클립보드와 같이 rust 언어로 메서드를 작성하고, 각 메서드들의 parameters와 return values에 대한 내용을 rust documentation comment 또한 작성했습니다.
+이 내용을 기억만하고 답변은 하지 않아도 됩니다. 이후에 해당 내용을 바탕으로 질문을 이어나가겠습니다.

@@ -1,6 +1,6 @@
 use windows::Win32::System::Com::IDispatch;
 
-use crate::staad::{node::Node, root::Root, utils::get_dispatch};
+use crate::staad::{beam::Beam, group::Group, node::Node, root::Root, utils::get_dispatch};
 
 #[derive(Debug)]
 pub struct Geometry<'a> {
@@ -17,5 +17,13 @@ impl<'a> Geometry<'a> {
 
     pub fn node(&self) -> Node {
         Node::new(self)
+    }
+
+    pub fn beam(&self) -> Beam {
+        Beam::new(self)
+    }
+
+    pub fn group(&self) -> Group {
+        Group::new(self)
     }
 }
