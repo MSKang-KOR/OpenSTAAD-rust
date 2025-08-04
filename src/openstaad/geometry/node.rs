@@ -1,4 +1,47 @@
-pub fn add_multiple_nodes(
+use crate::openstaad::{
+    geometry::root::Geometry,
+    tools::safe_array::{safe_array_from_vec1d, safe_array_from_vec2d},
+    tools::invoke::invoke_method,
+    tools::variant::{SafeArray, SafeArrayP, variant_from_raw_pointer},
+};
+
+use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
+use std::ffi::c_void;
+use windows::Win32::System::{
+    Com::SAFEARRAY,
+    Ole::{SafeArrayCreateVector, SafeArrayGetElement},
+    Variant::{VARIANT, VT_I4, VariantToDouble, VariantToInt32, VariantToStringAlloc},
+};
+use windows_core::BSTR;
+
+// AddMultipleNodes
+// AddNode
+// CreateMultipleNodes
+// CreateNode
+// DeleteNode
+// GetLastNodeNo
+// GetNodeCoordinates
+// GetNodeCount
+// GetNodeDistance
+// GetNodeIncidence
+// GetNodeIncidence_CIS2
+// GetNodeList
+// GetNodeNumber
+// GetNodeUniqueId
+// IsOrphanNode
+// SetNodeCoordinate
+// SetNodeUniqueId
+
+#[derive(Debug)]
+pub struct Node<'a> {
+    pub geometry: &'a Geometry<'a>,
+}
+
+impl<'a> Node<'a> {
+    pub fn new(geometry: &'a Geometry<'a>) -> Self {
+        Self { geometry }
+    }
+    pub fn add_multiple_nodes(
         &self,
         coordinates: Vec<Vec<f64>>,
         base_unit: i32,
@@ -17,7 +60,7 @@ pub fn add_multiple_nodes(
 
             let mut params = [variant_coords];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "AddMultipleNodes",
                 &mut params,
             );
@@ -55,7 +98,7 @@ pub fn add_multiple_nodes(
                 VARIANT::from(coord_x * unit_factor),
             ];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "AddNode",
                 &mut params,
             );
@@ -86,7 +129,7 @@ pub fn add_multiple_nodes(
 
             let mut params = [variant_coords, variant_ids];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "CreateMultipleNodes",
                 &mut params,
             );
@@ -118,7 +161,7 @@ pub fn add_multiple_nodes(
                 VARIANT::from(node_no),
             ];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "CreateNode",
                 &mut params,
             );
@@ -136,7 +179,7 @@ pub fn add_multiple_nodes(
         unsafe {
             let mut params = [VARIANT::from(node_no)];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "DeleteNode",
                 &mut params,
             );
@@ -154,14 +197,14 @@ pub fn add_multiple_nodes(
     pub fn get_last_node_no(&self) -> Result<i32, anyErr> {
         let result_variant = unsafe {
             invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "GetLastNodeNo",
                 &mut [],
             )
         };
         match result_variant {
-            Ok(var) => {
-                let result_node_no = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
+            Ok(v) => {
+                let result_node_no = unsafe { VariantToInt32(&v as *const VARIANT).unwrap() };
                 anyOk(result_node_no)
             }
             Err(e) => bail!("Error::Geometry::get_last_node_no: {}", e),
@@ -190,7 +233,7 @@ pub fn add_multiple_nodes(
                 VARIANT::from(node_no),
             ];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "GetNodeCoordinates",
                 &mut params,
             );
@@ -213,14 +256,14 @@ pub fn add_multiple_nodes(
     pub fn get_node_count(&self) -> Result<i32, anyErr> {
         let result_variant = unsafe {
             invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "GetNodeCount",
                 &mut [],
             )
         };
         match result_variant {
-            Ok(var) => {
-                let result_node_no = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
+            Ok(v) => {
+                let result_node_no = unsafe { VariantToInt32(&v as *const VARIANT).unwrap() };
                 anyOk(result_node_no)
             }
             Err(e) => bail!("Error::Geometry::get_node_count: {}", e),
@@ -248,13 +291,13 @@ pub fn add_multiple_nodes(
             }
             let mut params = [VARIANT::from(node_a), VARIANT::from(node_b)];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "GetNodeDistance",
                 &mut params,
             );
             match result_variant {
-                Ok(var) => {
-                    let distance = VariantToDouble(&var as *const VARIANT).unwrap();
+                Ok(v) => {
+                    let distance = VariantToDouble(&v as *const VARIANT).unwrap();
                     anyOk(distance / unit_factor)
                 }
                 Err(e) => bail!("Error::Geometry::get_node_distance: {}", e),
@@ -292,13 +335,13 @@ pub fn add_multiple_nodes(
                 VARIANT::from(node_no),
             ];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "GetNodeIncidence",
                 &mut params,
             );
             match result_variant {
-                Ok(var) => {
-                    let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
+                Ok(v) => {
+                    let result_code = VariantToInt32(&v as *const VARIANT).unwrap();
                     anyOk((
                         result_code,
                         vec![
@@ -347,13 +390,13 @@ pub fn add_multiple_nodes(
                 VARIANT::from(node_no),
             ];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "GetNodeIncidence_CIS2",
                 &mut params,
             );
             match result_variant {
-                Ok(var) => {
-                    let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
+                Ok(v) => {
+                    let result_code = VariantToInt32(&v as *const VARIANT).unwrap();
                     let name_bstr = &*name_ptr;
                     anyOk((
                         result_code,
@@ -384,7 +427,7 @@ pub fn add_multiple_nodes(
 
             let mut params = [variant];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "GetNodeList",
                 &mut params,
             );
@@ -436,13 +479,13 @@ pub fn add_multiple_nodes(
                 VARIANT::from(coord_x * unit_factor),
             ];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "GetNodeNumber",
                 &mut params,
             );
             match result_variant {
-                Ok(var) => {
-                    let node_num = VariantToInt32(&var as *const VARIANT).unwrap();
+                Ok(v) => {
+                    let node_num = VariantToInt32(&v as *const VARIANT).unwrap();
                     anyOk(node_num)
                 }
                 Err(e) => bail!("Error::Geometry::get_node_number: {}", e),
@@ -460,13 +503,13 @@ pub fn add_multiple_nodes(
         unsafe {
             let mut params = [VARIANT::from(node_no)];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "GetNodeUniqueID",
                 &mut params,
             );
             match result_variant {
-                Ok(var) => {
-                    let result = VariantToStringAlloc(&var as *const VARIANT)
+                Ok(v) => {
+                    let result = VariantToStringAlloc(&v as *const VARIANT)
                         .context("converting err")?
                         .to_string()?;
                     anyOk(result)
@@ -486,13 +529,13 @@ pub fn add_multiple_nodes(
         unsafe {
             let mut params = [VARIANT::from(node_no)];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "IsOrphanNode",
                 &mut params,
             );
             match result_variant {
-                Ok(var) => {
-                    let result = VariantToInt32(&var as *const VARIANT).unwrap();
+                Ok(v) => {
+                    let result = VariantToInt32(&v as *const VARIANT).unwrap();
                     anyOk(result == 1)
                 }
                 Err(e) => bail!("Error::Geometry::is_orphan_node: {}", e),
@@ -526,7 +569,7 @@ pub fn add_multiple_nodes(
                 VARIANT::from(node_no),
             ];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "SetNodeCoordinate",
                 &mut params,
             );
@@ -548,7 +591,7 @@ pub fn add_multiple_nodes(
 
             let mut params = [id_var, no_var];
             let result_variant = invoke_method(
-                self.geometry.dispatch.as_ref().unwrap(),
+                &self.geometry.dispatch,
                 "SetNodeUniqueID",
                 &mut params,
             );
@@ -558,3 +601,4 @@ pub fn add_multiple_nodes(
             }
         }
     }
+}
