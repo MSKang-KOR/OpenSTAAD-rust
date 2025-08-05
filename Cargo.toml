@@ -1,11 +1,11 @@
 [package]
-name = "openstaad"
+name = "openstaad_rust"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
-name = "staad"
-crate-type = ["cdylib", "lib"]
+name = "openstaad_rust"
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 windows = { version = "0.61.3", features = [
