@@ -12,22 +12,6 @@ use windows::Win32::System::{
     Variant::{VARIANT, VT_I4, VT_R8, VariantToInt32, VariantToStringAlloc},
 };
 
-// AssignSupportToNode
-// CreateInclinedSupport
-// CreateSupportFixed
-// CreateSupportFixedBut
-// CreateSupportPinned
-// DeleteSupport
-// GetSupportName
-// GetSupportUniqueID
-// RemoveSupportFromNode
-// SetSupportUniqueID
-// GetSupportCount
-// GetSupportInformation
-// GetSupportInformationEx
-// GetSupportNodes
-// GetSupportType
-
 #[derive(Debug)]
 pub struct Support<'a> {
     pub staad: &'a IDispatch,
@@ -548,3 +532,19 @@ impl<'a> Support<'a> {
         }
     }
 }
+
+// AssignSupportToNode
+// CreateInclinedSupport
+// CreateSupportFixed
+// CreateSupportFixedBut
+// CreateSupportPinned
+// DeleteSupport
+// GetSupportName
+// GetSupportUniqueID
+// RemoveSupportFromNode
+// SetSupportUniqueID
+// GetSupportCount
+// GetSupportInformation
+// GetSupportInformationEx
+// GetSupportNodes
+// GetSupportType

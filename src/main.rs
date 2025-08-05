@@ -3,54 +3,58 @@ mod openstaad;
 use openstaad::process::StaadProcess;
 use windows::Win32::System::Com::CoUninitialize;
 
-use std::{path::Path, thread::sleep, time::Duration};
+// use std::{path::Path, thread::sleep, time::Duration};
 
 use crate::openstaad::api::{geometry::Geometry, root::Root};
 
-#[tokio::main]
-async fn main() {
-    // StaadBackgroundAnalyzer
-    println!("Hello, world!");
-    let mut process = StaadProcess::new("");
-    match process.start().await {
-        Err(e) => {
-            unsafe { CoUninitialize() };
-            println!("{:#?}", e)
-        }
-        _ => {
-            // let _ = _staad.test_code();
-            if let Some(staad) = process.staad.as_ref() {
-                let _root = process.root();
-                let base_unit = _root.get_base_unit().unwrap();
-                println!("base unit: {:#?}", base_unit);
-
-                let _root = process.staad.as_ref().unwrap();
-                // test_root_methods(_root);
-
-                let _geometry = process.geometry();
-                // test_geometry_node_methods(&_geometry, base_unit);
-
-                let _property = process.property();
-
-                let _support = process.support();
-
-                let _load = process.load();
-
-                let _design = process.design();
-                // // test_design_methods(&_design);
-
-                let _output = process.output();
-                // // test_output_methods(&_output);
-
-                let _command = process.command();
-
-                // let _property = root.property();
-                // // test_section_methods(&_property);
-            }
-        }
-    }
-    unsafe { CoUninitialize() };
+fn main() {
+    println!("asdf");
 }
+
+// #[tokio::main]
+// async fn main() {
+//     // StaadBackgroundAnalyzer
+//     println!("Hello, world!");
+//     let mut process = StaadProcess::new("");
+//     match process.start().await {
+//         Err(e) => {
+//             unsafe { CoUninitialize() };
+//             println!("{:#?}", e)
+//         }
+//         _ => {
+//             // let _ = _staad.test_code();
+//             if let Some(staad) = process.staad.as_ref() {
+//                 let _root = process.root();
+//                 let base_unit = _root.get_base_unit().unwrap();
+//                 println!("base unit: {:#?}", base_unit);
+
+//                 let _root = process.staad.as_ref().unwrap();
+//                 // test_root_methods(_root);
+
+//                 let _geometry = process.geometry();
+//                 // test_geometry_node_methods(&_geometry, base_unit);
+
+//                 let _property = process.property();
+
+//                 let _support = process.support();
+
+//                 let _load = process.load();
+
+//                 let _design = process.design();
+//                 // // test_design_methods(&_design);
+
+//                 let _output = process.output();
+//                 // // test_output_methods(&_output);
+
+//                 let _command = process.command();
+
+//                 // let _property = root.property();
+//                 // // test_section_methods(&_property);
+//             }
+//         }
+//     }
+//     unsafe { CoUninitialize() };
+// }
 
 // fn test_root_methods(root: &Root) {
 //     let set_silent_mode_result = root.set_silent_mode(1);
@@ -79,122 +83,122 @@ async fn main() {
 //     }
 // }
 
-fn test_geometry_node_methods(geometry: &Geometry, base_unit: i32) {
-    let coordinates = vec![
-        vec![100., 100., 100.],
-        vec![200., 200., 200.],
-        vec![300., 300., 300.],
-    ];
-    let add_multiple_result = geometry.add_multiple_nodes(coordinates, base_unit);
-    match add_multiple_result {
-        Ok(v) => println!("add_multiple_result success: {:#?}", v),
-        Err(e) => println!("add_multiple_result error: {:#?}", e),
-    }
+// fn test_geometry_node_methods(geometry: &Geometry, base_unit: i32) {
+//     let coordinates = vec![
+//         vec![100., 100., 100.],
+//         vec![200., 200., 200.],
+//         vec![300., 300., 300.],
+//     ];
+//     let add_multiple_result = geometry.add_multiple_nodes(coordinates, base_unit);
+//     match add_multiple_result {
+//         Ok(v) => println!("add_multiple_result success: {:#?}", v),
+//         Err(e) => println!("add_multiple_result error: {:#?}", e),
+//     }
 
-    let add_node_result = geometry.add_node(10601., 113.55, -9481.441, base_unit);
-    match add_node_result {
-        Ok(v) => println!("add_node_result success: {:#?}", v),
-        Err(e) => println!("add_node_result error: {:#?}", e),
-    }
+//     let add_node_result = geometry.add_node(10601., 113.55, -9481.441, base_unit);
+//     match add_node_result {
+//         Ok(v) => println!("add_node_result success: {:#?}", v),
+//         Err(e) => println!("add_node_result error: {:#?}", e),
+//     }
 
-    let node_ids = vec![2004, 2005, 2006];
-    let coordinates = vec![
-        vec![400., 400., 400.],
-        vec![500., 500., 500.],
-        vec![600., 600., 600.],
-    ];
-    let create_multiple_result = geometry.create_multiple_nodes(node_ids, coordinates);
-    match create_multiple_result {
-        Ok(v) => println!("create_multiple_result success: {:#?}", v),
-        Err(e) => println!("create_multiple_result error: {:#?}", e),
-    }
+//     let node_ids = vec![2004, 2005, 2006];
+//     let coordinates = vec![
+//         vec![400., 400., 400.],
+//         vec![500., 500., 500.],
+//         vec![600., 600., 600.],
+//     ];
+//     let create_multiple_result = geometry.create_multiple_nodes(node_ids, coordinates);
+//     match create_multiple_result {
+//         Ok(v) => println!("create_multiple_result success: {:#?}", v),
+//         Err(e) => println!("create_multiple_result error: {:#?}", e),
+//     }
 
-    let create_node_result = geometry.create_node(2007, 10600., 113.55, -9481.441);
-    match create_node_result {
-        Ok(v) => println!("create_node_result success: {:#?}", v),
-        Err(e) => println!("create_node_result error: {:#?}", e),
-    }
+//     let create_node_result = geometry.create_node(2007, 10600., 113.55, -9481.441);
+//     match create_node_result {
+//         Ok(v) => println!("create_node_result success: {:#?}", v),
+//         Err(e) => println!("create_node_result error: {:#?}", e),
+//     }
 
-    let delete_node_result = geometry.delete_node(2007);
-    match delete_node_result {
-        Ok(v) => println!("delete_node_result success: {:#?}", v),
-        Err(e) => println!("delete_node_result error: {:#?}", e),
-    }
+//     let delete_node_result = geometry.delete_node(2007);
+//     match delete_node_result {
+//         Ok(v) => println!("delete_node_result success: {:#?}", v),
+//         Err(e) => println!("delete_node_result error: {:#?}", e),
+//     }
 
-    let get_last_node_no_result = geometry.get_last_node_no();
-    match get_last_node_no_result {
-        Ok(v) => println!("get_last_node_no_result success: {:#?}", v),
-        Err(e) => println!("get_last_node_no_result error: {:#?}", e),
-    }
+//     let get_last_node_no_result = geometry.get_last_node_no();
+//     match get_last_node_no_result {
+//         Ok(v) => println!("get_last_node_no_result success: {:#?}", v),
+//         Err(e) => println!("get_last_node_no_result error: {:#?}", e),
+//     }
 
-    let get_node_coordinates_result = geometry.get_node_coordinates(1789, base_unit);
-    match get_node_coordinates_result {
-        Ok(v) => println!("get_node_coordinates_result success: {:#?}", v),
-        Err(e) => println!("get_node_coordinates_result error: {:#?}", e),
-    }
+//     let get_node_coordinates_result = geometry.get_node_coordinates(1789, base_unit);
+//     match get_node_coordinates_result {
+//         Ok(v) => println!("get_node_coordinates_result success: {:#?}", v),
+//         Err(e) => println!("get_node_coordinates_result error: {:#?}", e),
+//     }
 
-    let get_node_count_result = geometry.get_node_count();
-    match get_node_count_result {
-        Ok(v) => println!("get_node_count_result success: {:#?}", v),
-        Err(e) => println!("get_node_count_result error: {:#?}", e),
-    }
+//     let get_node_count_result = geometry.get_node_count();
+//     match get_node_count_result {
+//         Ok(v) => println!("get_node_count_result success: {:#?}", v),
+//         Err(e) => println!("get_node_count_result error: {:#?}", e),
+//     }
 
-    let get_node_distance_result = geometry.get_node_distance(1, 2, base_unit);
-    match get_node_distance_result {
-        Ok(v) => println!("get_node_distance_result success: {:#?}", v),
-        Err(e) => println!("get_node_distance_result error: {:#?}", e),
-    }
+//     let get_node_distance_result = geometry.get_node_distance(1, 2, base_unit);
+//     match get_node_distance_result {
+//         Ok(v) => println!("get_node_distance_result success: {:#?}", v),
+//         Err(e) => println!("get_node_distance_result error: {:#?}", e),
+//     }
 
-    let get_node_incidence_result = geometry.get_node_incidence(1789, base_unit);
-    match get_node_incidence_result {
-        Ok(v) => println!("get_node_incidence_result success: {:#?}", v),
-        Err(e) => println!("get_node_incidence_result error: {:#?}", e),
-    }
+//     let get_node_incidence_result = geometry.get_node_incidence(1789, base_unit);
+//     match get_node_incidence_result {
+//         Ok(v) => println!("get_node_incidence_result success: {:#?}", v),
+//         Err(e) => println!("get_node_incidence_result error: {:#?}", e),
+//     }
 
-    let get_node_incidence_cis2_result = geometry.get_node_incidence_cis2(1789, base_unit);
-    match get_node_incidence_cis2_result {
-        Ok(v) => println!("get_node_incidence_cis2_result success: {:#?}", v),
-        Err(e) => println!("get_node_incidence_cis2_result error: {:#?}", e),
-    }
+//     let get_node_incidence_cis2_result = geometry.get_node_incidence_cis2(1789, base_unit);
+//     match get_node_incidence_cis2_result {
+//         Ok(v) => println!("get_node_incidence_cis2_result success: {:#?}", v),
+//         Err(e) => println!("get_node_incidence_cis2_result error: {:#?}", e),
+//     }
 
-    // let get_node_list_result = geometry.get_node_list();
-    // match get_node_list_result {
-    //     Ok(v) => println!("get_node_list_result success: {:#?}", v),
-    //     Err(e) => println!("get_node_list_result error: {:#?}", e),
-    // }
+//     // let get_node_list_result = geometry.get_node_list();
+//     // match get_node_list_result {
+//     //     Ok(v) => println!("get_node_list_result success: {:#?}", v),
+//     //     Err(e) => println!("get_node_list_result error: {:#?}", e),
+//     // }
 
-    let get_node_number_result =
-        geometry.get_node_number(10578.4, 115.5, -9478.459444444, base_unit);
-    match get_node_number_result {
-        Ok(v) => println!("get_node_number_result success: {:#?}", v),
-        Err(e) => println!("get_node_number_result error: {:#?}", e),
-    }
+//     let get_node_number_result =
+//         geometry.get_node_number(10578.4, 115.5, -9478.459444444, base_unit);
+//     match get_node_number_result {
+//         Ok(v) => println!("get_node_number_result success: {:#?}", v),
+//         Err(e) => println!("get_node_number_result error: {:#?}", e),
+//     }
 
-    let get_unique_id_result = geometry.get_node_unique_id(1789);
-    match get_unique_id_result {
-        Ok(v) => println!("get_unique_id_result success: {:#?}", v),
-        Err(e) => println!("get_unique_id_result error: {:#?}", e),
-    }
+//     let get_unique_id_result = geometry.get_node_unique_id(1789);
+//     match get_unique_id_result {
+//         Ok(v) => println!("get_unique_id_result success: {:#?}", v),
+//         Err(e) => println!("get_unique_id_result error: {:#?}", e),
+//     }
 
-    let is_orphan_node_result = geometry.is_orphan_node(1789);
-    match is_orphan_node_result {
-        Ok(v) => println!("is_orphan_node_result success: {:#?}", v),
-        Err(e) => println!("is_orphan_node_result error: {:#?}", e),
-    }
+//     let is_orphan_node_result = geometry.is_orphan_node(1789);
+//     match is_orphan_node_result {
+//         Ok(v) => println!("is_orphan_node_result success: {:#?}", v),
+//         Err(e) => println!("is_orphan_node_result error: {:#?}", e),
+//     }
 
-    let set_node_coordinate_result =
-        geometry.set_node_coordinate(1789, 10600., 115.5, -9478.4410, base_unit);
-    match set_node_coordinate_result {
-        Ok(v) => println!("set_node_coordinate_result success: {:#?}", v),
-        Err(e) => println!("set_node_coordinate_result error: {:#?}", e),
-    }
+//     let set_node_coordinate_result =
+//         geometry.set_node_coordinate(1789, 10600., 115.5, -9478.4410, base_unit);
+//     match set_node_coordinate_result {
+//         Ok(v) => println!("set_node_coordinate_result success: {:#?}", v),
+//         Err(e) => println!("set_node_coordinate_result error: {:#?}", e),
+//     }
 
-    let set_node_unique_id_result = geometry.set_node_unique_id(1789, "NODE_ID_1789");
-    match set_node_unique_id_result {
-        Ok(v) => println!("set_node_unique_id_result success: {:#?}", v),
-        Err(e) => println!("set_node_unique_id_result error: {:#?}", e),
-    }
-}
+//     let set_node_unique_id_result = geometry.set_node_unique_id(1789, "NODE_ID_1789");
+//     match set_node_unique_id_result {
+//         Ok(v) => println!("set_node_unique_id_result success: {:#?}", v),
+//         Err(e) => println!("set_node_unique_id_result error: {:#?}", e),
+//     }
+// }
 
 // fn test_output_methods(output: &Output) {
 //     let are_results_available_result = output.are_results_available();

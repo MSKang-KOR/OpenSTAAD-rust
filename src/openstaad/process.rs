@@ -4,20 +4,16 @@ use anyhow::{Context, Ok as anyOk, Result, anyhow};
 use windows::{
     Win32::System::{
         Com::{
-            CLSIDFromProgID, COINIT_APARTMENTTHREADED, CoCreateInstanceEx, CoInitializeEx,
-            CoUninitialize, IDispatch,
+            CLSIDFromProgID, COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize, IDispatch,
         },
         Ole::GetActiveObject,
     },
     core::{GUID, HSTRING, IUnknown, Interface, PCWSTR},
 };
 
-use crate::openstaad::{
-    api::{
-        command::Command, design::Design, geometry::Geometry, load::Load, output::Output,
-        property::Property, root::Root, support::Support,
-    },
-    tools::invoke::get_dispatch,
+use crate::openstaad::api::{
+    command::Command, design::Design, geometry::Geometry, load::Load, output::Output,
+    property::Property, root::Root, support::Support,
 };
 
 // STAAD 백그라운드 실행 및 제어 클래스
@@ -33,6 +29,31 @@ impl StaadProcess {
             staad: None,
             path: staad_path.to_string(),
         }
+    }
+
+    pub fn root(&self) -> Root {
+        Root::new(self.staad.as_ref().unwrap())
+    }
+    pub fn geometry(&self) -> Geometry {
+        Geometry::new(self.staad.as_ref().unwrap())
+    }
+    pub fn property(&self) -> Property {
+        Property::new(self.staad.as_ref().unwrap())
+    }
+    pub fn support(&self) -> Support {
+        Support::new(self.staad.as_ref().unwrap())
+    }
+    pub fn load(&self) -> Load {
+        Load::new(self.staad.as_ref().unwrap())
+    }
+    pub fn design(&self) -> Design {
+        Design::new(self.staad.as_ref().unwrap())
+    }
+    pub fn output(&self) -> Output {
+        Output::new(self.staad.as_ref().unwrap())
+    }
+    pub fn command(&self) -> Command {
+        Command::new(self.staad.as_ref().unwrap())
     }
 
     // STAAD.exe를 백그라운드에서 실행
@@ -77,31 +98,6 @@ impl StaadProcess {
         }
 
         anyOk(())
-    }
-
-    pub fn root(&self) -> Root {
-        Root::new(self.staad.as_ref().unwrap())
-    }
-    pub fn geometry(&self) -> Geometry {
-        Geometry::new(self.staad.as_ref().unwrap())
-    }
-    pub fn property(&self) -> Property {
-        Property::new(self.staad.as_ref().unwrap())
-    }
-    pub fn support(&self) -> Support {
-        Support::new(self.staad.as_ref().unwrap())
-    }
-    pub fn load(&self) -> Load {
-        Load::new(self.staad.as_ref().unwrap())
-    }
-    pub fn design(&self) -> Design {
-        Design::new(self.staad.as_ref().unwrap())
-    }
-    pub fn output(&self) -> Output {
-        Output::new(self.staad.as_ref().unwrap())
-    }
-    pub fn command(&self) -> Command {
-        Command::new(self.staad.as_ref().unwrap())
     }
 
     // STAAD COM 객체에 연결

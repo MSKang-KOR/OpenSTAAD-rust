@@ -1,17 +1,7 @@
-use crate::openstaad::tools::{
-    invoke::{get_dispatch, invoke_method},
-    safe_array::{safe_array_from_vec1d, safe_array_from_vec2d},
-    variant::{SafeArray, SafeArrayP, variant_from_raw_pointer},
-};
+use crate::openstaad::tools::invoke::{get_dispatch, invoke_method};
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
-use std::ffi::c_void;
-use windows::Win32::System::{
-    Com::{IDispatch, SAFEARRAY},
-    Ole::{SafeArrayCreateVector, SafeArrayGetElement},
-    Variant::{VARIANT, VT_BSTR, VT_I4, VariantToDouble, VariantToInt32, VariantToStringAlloc},
-};
-use windows_core::BSTR;
+use windows::Win32::System::{Com::IDispatch, Variant::VARIANT};
 
 #[derive(Debug)]
 pub struct Command<'a> {

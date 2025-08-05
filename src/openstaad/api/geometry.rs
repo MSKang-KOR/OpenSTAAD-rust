@@ -13,62 +13,6 @@ use windows::Win32::System::{
 };
 use windows_core::BSTR;
 
-// :: Node
-// AddMultipleNodes
-// AddNode
-// CreateMultipleNodes
-// CreateNode
-// DeleteNode
-// GetLastNodeNo
-// GetNodeCoordinates
-// GetNodeCount
-// GetNodeDistance
-// GetNodeIncidence
-// GetNodeIncidence_CIS2
-// GetNodeList
-// GetNodeNumber
-// GetNodeUniqueId
-// IsOrphanNode
-// SetNodeCoordinate
-// SetNodeUniqueId
-// :: Beam
-// AddBeam
-// AddMultipleBeams
-// BreakBeamsAtSpecificNodes
-// CreateBeam
-// CreateMultipleBeams
-// DeleteBeam
-// GetBeamLength
-// GetBeamList
-// GetBeamsConnectedAtNode
-// GetCountOfBreakableBeamsAtSpecificNodes
-// GetIntersectBeamsCount
-// GetLastBeamNo
-// GetMemberCount
-// GetMemberIncidence
-// GetMemberIncidence_CIS2
-// GetMemberUniqueID
-// GetNoOfBeamsConnectedAtNode
-// IntersectBeams
-// IsBeam
-// IsColumn
-// IsZUp
-// MergeBeams
-// RenumberBeam
-// SetCheckForIdenticalEntity
-// SetMemberUniqueID
-// SplitBeam
-// SplitBeamInEqlParts
-// :: Group
-// CreateGroupEx
-// DeleteGroup
-// GetGroupCount
-// GetGroupCountAll
-// GetGroupEntities
-// GetGroupEntityCount
-// GetGroupNames
-// UpdateGroup
-
 #[derive(Debug)]
 pub struct Geometry<'a> {
     pub staad: &'a IDispatch,
@@ -1577,3 +1521,59 @@ impl<'a> Geometry<'a> {
         }
     }
 }
+
+// :: Node
+// AddMultipleNodes
+// AddNode
+// CreateMultipleNodes
+// CreateNode
+// DeleteNode
+// GetLastNodeNo
+// GetNodeCoordinates
+// GetNodeCount
+// GetNodeDistance
+// GetNodeIncidence
+// GetNodeIncidence_CIS2
+// GetNodeList
+// GetNodeNumber
+// GetNodeUniqueId
+// IsOrphanNode
+// SetNodeCoordinate
+// SetNodeUniqueId
+// :: Beam
+// AddBeam
+// AddMultipleBeams
+// BreakBeamsAtSpecificNodes
+// CreateBeam
+// CreateMultipleBeams
+// DeleteBeam
+// GetBeamLength
+// GetBeamList
+// GetBeamsConnectedAtNode
+// GetCountOfBreakableBeamsAtSpecificNodes
+// GetIntersectBeamsCount
+// GetLastBeamNo
+// GetMemberCount
+// GetMemberIncidence
+// GetMemberIncidence_CIS2
+// GetMemberUniqueID
+// GetNoOfBeamsConnectedAtNode
+// IntersectBeams
+// IsBeam
+// IsColumn
+// IsZUp
+// MergeBeams
+// RenumberBeam
+// SetCheckForIdenticalEntity
+// SetMemberUniqueID
+// SplitBeam
+// SplitBeamInEqlParts
+// :: Group
+// CreateGroupEx
+// DeleteGroup
+// GetGroupCount
+// GetGroupCountAll
+// GetGroupEntities
+// GetGroupEntityCount
+// GetGroupNames
+// UpdateGroup
