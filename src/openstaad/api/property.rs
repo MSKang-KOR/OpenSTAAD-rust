@@ -1,10 +1,11 @@
 use crate::openstaad::tools::{
-    invoke::{get_dispatch, invoke_method},
+    com::{get_dispatch, invoke_method},
     safe_array::safe_array_from_vec1d,
     variant::{SafeArray, SafeArrayP, variant_from_raw_pointer},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
+use serde::{Deserialize, Serialize};
 use std::ffi::c_void;
 use windows::Win32::System::{
     Com::{IDispatch, SAFEARRAY},
@@ -15,18 +16,20 @@ use windows::Win32::System::{
 };
 use windows_core::BSTR;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Property<'a> {
-    pub staad: &'a IDispatch,
-    pub dispatch: IDispatch,
+    #[serde(skip)]
+    pub staad: Option<&'a IDispatch>,
+    #[serde(skip)]
+    pub dispatch: Option<IDispatch>,
 }
 
 impl<'a> Property<'a> {
-    pub fn new(staad: &'a IDispatch) -> Self {
-        let _property = unsafe { get_dispatch(staad, "Property", &mut []).unwrap() };
+    pub fn new(staad: Option<&'a IDispatch>) -> Self {
+        let _property = unsafe { get_dispatch(staad.unwrap(), "Property", &mut []).unwrap() };
         Self {
             staad,
-            dispatch: _property,
+            dispatch: Some(_property),
         }
     }
     /// Creates angle property from database.
@@ -57,8 +60,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(section_name),
                 VARIANT::from(country),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateAnglePropertyFromTable", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateAnglePropertyFromTable",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let property_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -98,8 +104,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(section_name),
                 VARIANT::from(country),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateBeamPropertyFromTable", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateBeamPropertyFromTable",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let property_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -135,8 +144,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(section_name),
                 VARIANT::from(country),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateBeamPropertyFromTableEx", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateBeamPropertyFromTableEx",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let property_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -188,7 +200,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(country),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "CreateChannelPropertyFromTable",
                 &mut params,
             );
@@ -215,8 +227,11 @@ impl<'a> Property<'a> {
             let variant_thickness = variant_from_raw_pointer::<SafeArray<f64>>(sa_thickness);
 
             let mut params = [variant_thickness];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreatePlateThicknessProperty", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreatePlateThicknessProperty",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let property_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -250,8 +265,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(zd),
                 VARIANT::from(yd),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreatePrismaticTeeProperty", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreatePrismaticTeeProperty",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let property_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -279,7 +297,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(zb), VARIANT::from(zd), VARIANT::from(yd)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "CreatePrismaticTrapezoidalProperty",
                 &mut params,
             );
@@ -322,8 +340,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(section_name),
                 VARIANT::from(country),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateTeePropertyFromTable", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateTeePropertyFromTable",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let property_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -365,7 +386,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(country),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "CreateWideFlangePropertyFromTable",
                 &mut params,
             );
@@ -432,8 +453,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(section_name),
                 VARIANT::from(table_ref),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "AddUPTPropertyCHANNEL", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddUPTPropertyCHANNEL",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -492,8 +516,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(section_name),
                 VARIANT::from(table_ref),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "AddUPTPropertyDOUBLEANGLE", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddUPTPropertyDOUBLEANGLE",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -555,8 +582,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(section_name),
                 VARIANT::from(table_ref),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "AddUPTPropertyGENERAL", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddUPTPropertyGENERAL",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -606,8 +636,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(section_name),
                 VARIANT::from(table_ref),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "AddUPTPropertyISECTION", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddUPTPropertyISECTION",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -659,7 +692,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(section_name),
                 VARIANT::from(table_ref),
             ];
-            let result_variant = invoke_method(&self.dispatch, "AddUPTPropertyTEE", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddUPTPropertyTEE",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -709,8 +746,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(section_name),
                 VARIANT::from(table_ref),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "AddUPTPropertyWIDEFLANGE", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddUPTPropertyWIDEFLANGE",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -745,7 +785,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(table_ref),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "AddUPTPropertyWIDEFLANGECOMPOSITE",
                 &mut params,
             );
@@ -786,7 +826,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(table_ref),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "AddUPTPropertyWIDEFLANGEUNEQUAL",
                 &mut params,
             );
@@ -817,8 +857,11 @@ impl<'a> Property<'a> {
     ) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(section_name), VARIANT::from(table_id)];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreatePropertyFromUPTTable", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreatePropertyFromUPTTable",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let property_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -848,7 +891,11 @@ impl<'a> Property<'a> {
     pub fn create_upt_table(&self, table_type: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(table_type)];
-            let result_variant = invoke_method(&self.dispatch, "CreateUPTTable", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateUPTTable",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let table_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -892,7 +939,7 @@ impl<'a> Property<'a> {
             ];
 
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetUptGeneralProfileBoundaryPoints",
                 &mut params,
             );
@@ -961,7 +1008,7 @@ impl<'a> Property<'a> {
             ];
 
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetUptGeneralProfilePointsCount",
                 &mut params,
             );
@@ -1008,7 +1055,7 @@ impl<'a> Property<'a> {
             ];
 
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetUptGeneralStressLocationPoints",
                 &mut params,
             );
@@ -1066,7 +1113,11 @@ impl<'a> Property<'a> {
             let variant_beams = variant_from_raw_pointer::<SafeArray<i32>>(sa_beams);
 
             let mut params = [VARIANT::from(beta_angle), variant_beams];
-            let result_variant = invoke_method(&self.dispatch, "AssignBetaAngle", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignBetaAngle",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1086,7 +1137,8 @@ impl<'a> Property<'a> {
     pub fn get_beta_angle(&self, beam_no: i32) -> Result<f64, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetBetaAngle", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "GetBetaAngle", &mut params);
             match result_variant {
                 Ok(var) => {
                     let beta_angle = VariantToDouble(&var as *const VARIANT).unwrap();
@@ -1105,7 +1157,11 @@ impl<'a> Property<'a> {
     pub fn get_beam_section_name(&self, beam_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetBeamSectionName", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetBeamSectionName",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToStringAlloc(&var as *const VARIANT)
@@ -1126,8 +1182,11 @@ impl<'a> Property<'a> {
     pub fn get_beam_section_property_ref_no(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetBeamSectionPropertyRefNo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetBeamSectionPropertyRefNo",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1147,8 +1206,11 @@ impl<'a> Property<'a> {
     pub fn get_beam_section_property_type_no(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetBeamSectionPropertyTypeNo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetBeamSectionPropertyTypeNo",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1193,7 +1255,7 @@ impl<'a> Property<'a> {
             ];
 
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetBeamSectionPropertyValuesEx",
                 &mut params,
             );
@@ -1232,8 +1294,13 @@ impl<'a> Property<'a> {
     /// # Return values
     /// * `<Val>` The total count of Section Property values.
     pub fn get_count_of_section_property_values_ex(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetCountofSectionPropertyValuesEx", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetCountofSectionPropertyValuesEx",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -1256,7 +1323,11 @@ impl<'a> Property<'a> {
     pub fn get_country_table_no(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetCountryTableNo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetCountryTableNo",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1282,7 +1353,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(prof_ref_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetSectionPropertyAssignedBeamCount",
                 &mut params,
             );
@@ -1320,7 +1391,7 @@ impl<'a> Property<'a> {
 
             let mut params = [variant, VARIANT::from(prof_ref_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetSectionPropertyAssignedBeamList",
                 &mut params,
             );
@@ -1352,8 +1423,13 @@ impl<'a> Property<'a> {
     /// # Returns
     /// * The total number of different sectional properties.
     pub fn get_section_property_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetSectionPropertyCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSectionPropertyCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -1372,8 +1448,11 @@ impl<'a> Property<'a> {
     pub fn get_section_property_country(&self, sec_ref_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(sec_ref_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetSectionPropertyCountry", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSectionPropertyCountry",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1398,8 +1477,11 @@ impl<'a> Property<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetSectionPropertyList", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSectionPropertyList",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => {
                     let prop_safe_arr = *params[0].Anonymous.Anonymous.Anonymous.pparray;
@@ -1436,8 +1518,11 @@ impl<'a> Property<'a> {
                 variant_from_raw_pointer::<BSTR>(name_ptr),
                 VARIANT::from(sec_ref_no),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetSectionPropertyName", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSectionPropertyName",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1458,8 +1543,11 @@ impl<'a> Property<'a> {
     pub fn get_section_property_type(&self, sec_ref_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(sec_ref_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetSectionPropertyType", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSectionPropertyType",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1514,8 +1602,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(prof_ref_no),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetSectionPropertyValues", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSectionPropertyValues",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1553,8 +1644,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(prop_no),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetSectionPropertyValuesEx", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSectionPropertyValuesEx",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1594,7 +1688,11 @@ impl<'a> Property<'a> {
     pub fn get_section_table_no(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetSectionTableNo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSectionTableNo",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1615,7 +1713,8 @@ impl<'a> Property<'a> {
     pub fn get_shape_code(&self, country: i32, section_name: &str) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(section_name), VARIANT::from(country)];
-            let result_variant = invoke_method(&self.dispatch, "GetShapeCode", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "GetShapeCode", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1639,8 +1738,11 @@ impl<'a> Property<'a> {
     ) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(table_no), VARIANT::from(section_name)];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreatePropertyFromUserTable", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreatePropertyFromUserTable",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1661,7 +1763,11 @@ impl<'a> Property<'a> {
     pub fn create_upt_table_ex(&self, table_no: i32, table_type: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(table_type), VARIANT::from(table_no)];
-            let result_variant = invoke_method(&self.dispatch, "CreateUPTTableEx", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateUPTTableEx",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1681,7 +1787,8 @@ impl<'a> Property<'a> {
     pub fn find_upt_table(&self, table_type: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(table_type)];
-            let result_variant = invoke_method(&self.dispatch, "FindUPTTable", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "FindUPTTable", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1696,8 +1803,13 @@ impl<'a> Property<'a> {
     /// # Returns
     /// * The number of UPT tables.
     pub fn get_user_provided_table_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetUserProvidedTableCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetUserProvidedTableCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -1721,8 +1833,11 @@ impl<'a> Property<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetUserProvidedTableList", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetUserProvidedTableList",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => {
                     let table_safe_arr = *params[0].Anonymous.Anonymous.Anonymous.pparray;
@@ -1753,8 +1868,11 @@ impl<'a> Property<'a> {
     pub fn get_user_provided_table_no(&self, sec_ref_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(sec_ref_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetUserProvidedTableNo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetUserProvidedTableNo",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1774,7 +1892,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(table_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetUserProvidedTableSectionCount",
                 &mut params,
             );
@@ -1809,7 +1927,7 @@ impl<'a> Property<'a> {
 
             let mut params = [variant, VARIANT::from(table_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetUserProvidedTableSectionList",
                 &mut params,
             );
@@ -1868,7 +1986,7 @@ impl<'a> Property<'a> {
             ];
 
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetUserProvidedTableSectionProperties",
                 &mut params,
             );
@@ -1917,7 +2035,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(section_name), VARIANT::from(table_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetUserProvidedTableSectionPropertyCount",
                 &mut params,
             );
@@ -1951,7 +2069,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(table_no),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetUserProvidedTableSectionType",
                 &mut params,
             );
@@ -1983,8 +2101,11 @@ impl<'a> Property<'a> {
     ) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(section_name), VARIANT::from(table_ref)];
-            let result_variant =
-                invoke_method(&self.dispatch, "RemovePropertyFromUPTTable", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "RemovePropertyFromUPTTable",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2004,7 +2125,11 @@ impl<'a> Property<'a> {
     pub fn remove_upt_table(&self, table_ref: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(table_ref)];
-            let result_variant = invoke_method(&self.dispatch, "RemoveUPTTable", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "RemoveUPTTable",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2035,7 +2160,11 @@ impl<'a> Property<'a> {
             let variant_beams = variant_from_raw_pointer::<SafeArray<i32>>(sa_beams);
 
             let mut params = [VARIANT::from(property_id), variant_beams];
-            let result_variant = invoke_method(&self.dispatch, "AssignBeamProperty", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignBeamProperty",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2064,8 +2193,11 @@ impl<'a> Property<'a> {
             let variant_plates = variant_from_raw_pointer::<SafeArray<i32>>(sa_plates);
 
             let mut params = [VARIANT::from(spec_no), variant_plates];
-            let result_variant =
-                invoke_method(&self.dispatch, "AssignElementSpecToPlate", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignElementSpecToPlate",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2094,8 +2226,11 @@ impl<'a> Property<'a> {
             let variant_beams = variant_from_raw_pointer::<SafeArray<i32>>(sa_beams);
 
             let mut params = [VARIANT::from(spec_no), variant_beams];
-            let result_variant =
-                invoke_method(&self.dispatch, "AssignMemberSpecToBeam", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignMemberSpecToBeam",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2128,7 +2263,11 @@ impl<'a> Property<'a> {
             let variant_plates = variant_from_raw_pointer::<SafeArray<i32>>(sa_plates);
 
             let mut params = [VARIANT::from(property_id), variant_plates];
-            let result_variant = invoke_method(&self.dispatch, "AssignPlateThickness", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignPlateThickness",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2154,7 +2293,11 @@ impl<'a> Property<'a> {
     ) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(property_id), VARIANT::from(plate_no)];
-            let result_variant = invoke_method(&self.dispatch, "AssignPlateThickness", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignPlateThickness",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2181,8 +2324,11 @@ impl<'a> Property<'a> {
     pub fn create_assign_profile_property(&self, assign_type: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(assign_type)];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateAssignProfileProperty", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateAssignProfileProperty",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2200,8 +2346,13 @@ impl<'a> Property<'a> {
     /// # Remarks
     /// Assignment will fail if there are no members in the model or design results are not available. This API will not work with physical model.
     pub fn update_properties_to_design_section(&self) -> Result<bool, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "UpdatePropertiesToDesignSection", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "UpdatePropertiesToDesignSection",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_code = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -2255,8 +2406,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(regid_xy_yz_zx),
                 VARIANT::from(control_node),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "AddControlDependentRelation", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddControlDependentRelation",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2274,7 +2428,7 @@ impl<'a> Property<'a> {
     pub fn create_element_ignore_inplane_rotn_spec(&self) -> Result<i32, anyErr> {
         let result_variant = unsafe {
             invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "CreateElementIgnoreInplaneRotnSpec",
                 &mut [],
             )
@@ -2316,8 +2470,11 @@ impl<'a> Property<'a> {
             let variant_dof = variant_from_raw_pointer::<SafeArray<i32>>(sa_dof);
 
             let mut params = [variant_dof, VARIANT::from(node)];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateElementNodeReleaseSpec", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateElementNodeReleaseSpec",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2333,8 +2490,13 @@ impl<'a> Property<'a> {
     /// * `<Val>` The assigned specification number ID.
     /// * `-6013` Library Error: Unable to create MEMBER COMPRESSION specification.
     pub fn create_member_compression_spec(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "CreateMemberCompressionSpec", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateMemberCompressionSpec",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_code = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -2349,8 +2511,13 @@ impl<'a> Property<'a> {
     /// * `<Val>` The assigned specification number ID.
     /// * `-6014` Library Error: Unable to create IGNORE STIFFNESS specification.
     pub fn create_member_ignore_stiff_spec(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "CreateMemberIgnoreStiffSpec", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateMemberIgnoreStiffSpec",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_code = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -2365,8 +2532,13 @@ impl<'a> Property<'a> {
     /// * `<Val>` The assigned specification number ID.
     /// * `-6011` Library Error: Unable to create MEMBER INACTIVE specification.
     pub fn create_member_inactive_spec(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "CreateMemberInactiveSpec", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateMemberInactiveSpec",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_code = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -2406,7 +2578,7 @@ impl<'a> Property<'a> {
 
             let mut params = [variant_factors, variant_dof, VARIANT::from(location)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "CreateMemberPartialReleaseSpec",
                 &mut params,
             );
@@ -2449,8 +2621,11 @@ impl<'a> Property<'a> {
             let variant_springs = variant_from_raw_pointer::<SafeArray<f64>>(sa_springs);
 
             let mut params = [variant_springs, variant_dof, VARIANT::from(location)];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateMemberReleaseSpec", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateMemberReleaseSpec",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2466,8 +2641,13 @@ impl<'a> Property<'a> {
     /// * `<Val>` The assigned specification number ID.
     /// * `-6012` Library Error: Unable to create MEMBER TENSION specification.
     pub fn create_member_tension_spec(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "CreateMemberTensionSpec", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateMemberTensionSpec",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_code = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -2482,8 +2662,13 @@ impl<'a> Property<'a> {
     /// * `<Val>` The assigned specification number ID.
     /// * `-6010` Library Error: Unable to create MEMBER TRUSS specification.
     pub fn create_member_truss_spec(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "CreateMemberTrussSpec", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateMemberTrussSpec",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_code = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -2500,7 +2685,7 @@ impl<'a> Property<'a> {
     pub fn delete_all_control_dependent_relations(&self) -> Result<i32, anyErr> {
         let result_variant = unsafe {
             invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "DeleteAllControlDependentRelations",
                 &mut [],
             )
@@ -2527,8 +2712,11 @@ impl<'a> Property<'a> {
     pub fn delete_member_release_spec(&self, beam_no: i32, location: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(location), VARIANT::from(beam_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "DeleteMemberReleaseSpec", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "DeleteMemberReleaseSpec",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2548,7 +2736,11 @@ impl<'a> Property<'a> {
     pub fn delete_member_spec(&self, spec_no: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(spec_no)];
-            let result_variant = invoke_method(&self.dispatch, "DeleteMemberSpec", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "DeleteMemberSpec",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2568,7 +2760,11 @@ impl<'a> Property<'a> {
     pub fn delete_property(&self, property_id: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(property_id)];
-            let result_variant = invoke_method(&self.dispatch, "DeleteProperty", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "DeleteProperty",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2591,8 +2787,11 @@ impl<'a> Property<'a> {
                 variant_from_raw_pointer::<f64>(alpha_ptr),
                 VARIANT::from(prop_no),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetAlphaAngleForSection", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetAlphaAngleForSection",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(*alpha_ptr),
                 Err(e) => bail!("Error::Property::get_alpha_angle_for_section: {}", e),
@@ -2616,8 +2815,11 @@ impl<'a> Property<'a> {
                 variant_from_raw_pointer::<f64>(cey_ptr),
                 VARIANT::from(prop_no),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetCentroidLocationForSection", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetCentroidLocationForSection",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk((*cey_ptr, *cez_ptr)),
                 Err(e) => bail!("Error::Property::get_centroid_location_for_section: {}", e),
@@ -2629,8 +2831,13 @@ impl<'a> Property<'a> {
     /// # Return values
     /// * `<Val>` The total number of inactive member(s).
     pub fn get_inactive_member_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetInactiveMemberCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetInactiveMemberCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -2651,8 +2858,11 @@ impl<'a> Property<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetInactiveMemberList", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetInactiveMemberList",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => {
                     let member_safe_arr = *params[0].Anonymous.Anonymous.Anonymous.pparray;
@@ -2709,8 +2919,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(beam_no),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetMemberReleaseSpecEx", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMemberReleaseSpecEx",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2778,7 +2991,11 @@ impl<'a> Property<'a> {
                 variant_from_raw_pointer::<i32>(spec_code_ptr),
                 VARIANT::from(member_no),
             ];
-            let result_variant = invoke_method(&self.dispatch, "GetMemberSpecCode", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMemberSpecCode",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2797,7 +3014,11 @@ impl<'a> Property<'a> {
     pub fn get_property_unique_id(&self, prop_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(prop_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetPropertyUniqueID", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetPropertyUniqueID",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToStringAlloc(&var as *const VARIANT)
@@ -2815,8 +3036,13 @@ impl<'a> Property<'a> {
     /// * `1` OK.
     /// * `0` No element release specification present
     pub fn remove_all_element_node_release_spec(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "RemoveAllElementNodeReleaseSpec", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "RemoveAllElementNodeReleaseSpec",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_code = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -2838,8 +3064,11 @@ impl<'a> Property<'a> {
     pub fn remove_beam_property_helper(&self, beam_no: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "RemoveBeamPropertyHelper", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "RemoveBeamPropertyHelper",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2863,7 +3092,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(plate_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "RemoveElementIgnoreInplaneRotnSpecFromPlate",
                 &mut params,
             );
@@ -2894,8 +3123,11 @@ impl<'a> Property<'a> {
     ) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(location), VARIANT::from(beam_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "RemoveMemberCableSpecFromBeam", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "RemoveMemberCableSpecFromBeam",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2916,7 +3148,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "RemoveMemberCompressionSpecFromBeam",
                 &mut params,
             );
@@ -2943,7 +3175,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "RemoveMemberIgnoreStiffSpecFromBeam",
                 &mut params,
             );
@@ -2970,7 +3202,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "RemoveMemberInactiveSpecFromBeam",
                 &mut params,
             );
@@ -3002,7 +3234,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(location), VARIANT::from(beam_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "RemoveMemberReleaseSpecFromBeam",
                 &mut params,
             );
@@ -3029,7 +3261,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "RemoveMemberTensionSpecFromBeam",
                 &mut params,
             );
@@ -3055,8 +3287,11 @@ impl<'a> Property<'a> {
     pub fn remove_member_truss_spec_from_beam(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "RemoveMemberTrussSpecFromBeam", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "RemoveMemberTrussSpecFromBeam",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3076,8 +3311,11 @@ impl<'a> Property<'a> {
     pub fn remove_property_from_beam(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "RemovePropertyFromBeam", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "RemovePropertyFromBeam",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3095,7 +3333,11 @@ impl<'a> Property<'a> {
     pub fn set_property_unique_id(&self, prop_no: i32, unique_id: &str) -> Result<(), anyErr> {
         unsafe {
             let mut params = [VARIANT::from(unique_id), VARIANT::from(prop_no)];
-            let result_variant = invoke_method(&self.dispatch, "SetPropertyUniqueID", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetPropertyUniqueID",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Property::set_property_unique_id: {}", e),
@@ -3139,7 +3381,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(name),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "CreateIsotropicMaterialAluminum",
                 &mut params,
             );
@@ -3193,7 +3435,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(name),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "CreateIsotropicMaterialConcrete",
                 &mut params,
             );
@@ -3241,7 +3483,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(name),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "CreateIsotropicMaterialProperties",
                 &mut params,
             );
@@ -3307,7 +3549,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(name),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "CreateIsotropicMaterialPropertiesEx",
                 &mut params,
             );
@@ -3372,8 +3614,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(e),
                 VARIANT::from(name),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateIsotropicMaterialSteel", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateIsotropicMaterialSteel",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3420,8 +3665,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(e),
                 VARIANT::from(name),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateIsotropicMaterialTimber", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateIsotropicMaterialTimber",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3441,7 +3689,11 @@ impl<'a> Property<'a> {
     pub fn delete_material(&self, material_name: &str) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(material_name)];
-            let result_variant = invoke_method(&self.dispatch, "DeleteMaterial", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "DeleteMaterial",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3460,7 +3712,11 @@ impl<'a> Property<'a> {
     pub fn get_beam_material_name(&self, beam_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetBeamMaterialName", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetBeamMaterialName",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToStringAlloc(&var as *const VARIANT)
@@ -3481,8 +3737,11 @@ impl<'a> Property<'a> {
     pub fn get_element_material_name(&self, plate_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(plate_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetElementMaterialName", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetElementMaterialName",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToStringAlloc(&var as *const VARIANT)
@@ -3508,7 +3767,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(material_name)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetIsotropicMaterialAssignedBeamCount",
                 &mut params,
             );
@@ -3548,7 +3807,7 @@ impl<'a> Property<'a> {
 
             let mut params = [variant, VARIANT::from(material_name)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetIsotropicMaterialAssignedBeamList",
                 &mut params,
             );
@@ -3588,7 +3847,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(material_name)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetIsotropicMaterialAssignedPlateCount",
                 &mut params,
             );
@@ -3617,7 +3876,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(material_name)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetIsotropicMaterialAssignedSolidCount",
                 &mut params,
             );
@@ -3657,7 +3916,7 @@ impl<'a> Property<'a> {
 
             let mut params = [variant, VARIANT::from(material_name)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetIsotropicMaterialAssignedSolidList",
                 &mut params,
             );
@@ -3689,8 +3948,13 @@ impl<'a> Property<'a> {
     /// # Return values
     /// * `<Val>` The number of isotropic material.
     pub fn get_isotropic_material_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetIsotropicMaterialCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetIsotropicMaterialCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -3734,7 +3998,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(mat_no),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetIsotropicMaterialProperties",
                 &mut params,
             );
@@ -3795,7 +4059,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(mat_no),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetIsotropicMaterialPropertiesAssigned",
                 &mut params,
             );
@@ -3877,7 +4141,7 @@ impl<'a> Property<'a> {
                 VARIANT::from(mat_no),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetIsotropicMaterialPropertiesEx",
                 &mut params,
             );
@@ -3935,7 +4199,11 @@ impl<'a> Property<'a> {
                 variant_from_raw_pointer::<f64>(elasticity_ptr),
                 VARIANT::from(material_name),
             ];
-            let result_variant = invoke_method(&self.dispatch, "GetMaterialProperty", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMaterialProperty",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3989,8 +4257,11 @@ impl<'a> Property<'a> {
                 variant_from_raw_pointer::<f64>(elasticity_ptr),
                 VARIANT::from(material_name),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetMaterialPropertyEx", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMaterialPropertyEx",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4017,8 +4288,13 @@ impl<'a> Property<'a> {
     /// # Return values
     /// * `<Val>` The number of 2D orthotropic material.
     pub fn get_orthotropic_2d_material_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetOrthotropic2DMaterialCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetOrthotropic2DMaterialCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -4076,7 +4352,7 @@ impl<'a> Property<'a> {
             ];
 
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetOrthotropic2DMaterialProperties",
                 &mut params,
             );
@@ -4167,8 +4443,11 @@ impl<'a> Property<'a> {
             let variant_members = variant_from_raw_pointer::<SafeArray<i32>>(sa_members);
 
             let mut params = [variant_members, VARIANT::from(material_name)];
-            let result_variant =
-                invoke_method(&self.dispatch, "AssignMaterialToMember", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignMaterialToMember",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4193,8 +4472,11 @@ impl<'a> Property<'a> {
     ) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(member_no), VARIANT::from(material_name)];
-            let result_variant =
-                invoke_method(&self.dispatch, "AssignMaterialToMember", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignMaterialToMember",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4225,8 +4507,11 @@ impl<'a> Property<'a> {
             let variant_plates = variant_from_raw_pointer::<SafeArray<i32>>(sa_plates);
 
             let mut params = [variant_plates, VARIANT::from(material_name)];
-            let result_variant =
-                invoke_method(&self.dispatch, "AssignMaterialToPlate", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignMaterialToPlate",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4252,8 +4537,11 @@ impl<'a> Property<'a> {
     ) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(plate_no), VARIANT::from(material_name)];
-            let result_variant =
-                invoke_method(&self.dispatch, "AssignMaterialToPlate", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignMaterialToPlate",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4281,8 +4569,11 @@ impl<'a> Property<'a> {
             let variant_solids = variant_from_raw_pointer::<SafeArray<i32>>(sa_solids);
 
             let mut params = [variant_solids, VARIANT::from(material_name)];
-            let result_variant =
-                invoke_method(&self.dispatch, "AssignMaterialToSolid", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignMaterialToSolid",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4307,8 +4598,11 @@ impl<'a> Property<'a> {
     ) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(solid_no), VARIANT::from(material_name)];
-            let result_variant =
-                invoke_method(&self.dispatch, "AssignMaterialToSolid", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignMaterialToSolid",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4327,7 +4621,11 @@ impl<'a> Property<'a> {
     pub fn set_material_name(&self, material_name: &str) -> Result<(), anyErr> {
         unsafe {
             let mut params = [VARIANT::from(material_name)];
-            let result_variant = invoke_method(&self.dispatch, "SetMaterialName", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetMaterialName",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Property::set_material_name: {}", e),
@@ -4364,7 +4662,11 @@ impl<'a> Property<'a> {
                 variant_from_raw_pointer::<f64>(elasticity_ptr),
                 VARIANT::from(beam_no),
             ];
-            let result_variant = invoke_method(&self.dispatch, "GetBeamConstants", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetBeamConstants",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4421,7 +4723,11 @@ impl<'a> Property<'a> {
                 variant_from_raw_pointer::<f64>(width_ptr),
                 VARIANT::from(beam_no),
             ];
-            let result_variant = invoke_method(&self.dispatch, "GetBeamProperty", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetBeamProperty",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4487,7 +4793,11 @@ impl<'a> Property<'a> {
                 variant_from_raw_pointer::<f64>(width_ptr),
                 VARIANT::from(beam_no),
             ];
-            let result_variant = invoke_method(&self.dispatch, "GetBeamPropertyAll", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetBeamPropertyAll",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4538,7 +4848,11 @@ impl<'a> Property<'a> {
                 VARIANT::from(beam_no),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "GetMemberReleaseSpec", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMemberReleaseSpec",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4584,8 +4898,11 @@ impl<'a> Property<'a> {
     pub fn get_plate_section_property_ref_no(&self, plate_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(plate_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetPlateSectionPropertyRefNo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetPlateSectionPropertyRefNo",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4599,8 +4916,13 @@ impl<'a> Property<'a> {
     /// # Returns
     /// * The standard profile default database folder path.
     pub fn get_default_standard_profile_db_folder(&self) -> Result<String, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetDefaultStandardProfileDBFolder", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetDefaultStandardProfileDBFolder",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let folder_path = unsafe {
@@ -4621,8 +4943,13 @@ impl<'a> Property<'a> {
     /// # Returns
     /// * The standard profile database folder path.
     pub fn get_standard_profile_db_folder(&self) -> Result<String, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetStandardProfileDBFolder", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetStandardProfileDBFolder",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let folder_path = unsafe {
@@ -4646,7 +4973,7 @@ impl<'a> Property<'a> {
         unsafe {
             let mut params = [VARIANT::from(sec_ref_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetStandardSectionDatabaseName",
                 &mut params,
             );
@@ -4671,8 +4998,11 @@ impl<'a> Property<'a> {
     pub fn get_standard_section_name(&self, sec_ref_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(sec_ref_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetStandardSectionName", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetStandardSectionName",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let section_name = VariantToStringAlloc(&var as *const VARIANT)
@@ -4694,8 +5024,11 @@ impl<'a> Property<'a> {
     pub fn get_standard_section_table_name(&self, sec_ref_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(sec_ref_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetStandardSectionTableName", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetStandardSectionTableName",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let table_name = VariantToStringAlloc(&var as *const VARIANT)
@@ -4717,8 +5050,11 @@ impl<'a> Property<'a> {
     pub fn is_standard_database_section(&self, sec_ref_no: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(sec_ref_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "IsStandardDatabaseSection", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "IsStandardDatabaseSection",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4738,8 +5074,11 @@ impl<'a> Property<'a> {
     pub fn set_standard_profile_db_folder(&self, folder_name: &str) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(folder_name)];
-            let result_variant =
-                invoke_method(&self.dispatch, "SetStandardProfileDBFolder", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetStandardProfileDBFolder",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4750,6 +5089,9 @@ impl<'a> Property<'a> {
         }
     }
 }
+
+unsafe impl<'a> Send for Property<'a> {}
+unsafe impl<'a> Sync for Property<'a> {}
 
 // ********** Section **********
 // :: Create Profile

@@ -1,32 +1,33 @@
 use crate::openstaad::tools::{
-    invoke::{get_dispatch, invoke_method},
-    safe_array::{safe_array_from_vec1d, safe_array_from_vec2d},
+    com::{get_dispatch, invoke_method},
+    safe_array::safe_array_from_vec1d,
     variant::{SafeArray, SafeArrayP, variant_from_raw_pointer},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
+use serde::{Deserialize, Serialize};
 use std::ffi::c_void;
 use windows::Win32::System::{
     Com::{IDispatch, SAFEARRAY},
     Ole::{SafeArrayCreateVector, SafeArrayGetElement},
-    Variant::{
-        VARIANT, VT_BSTR, VT_I4, VT_R8, VariantToDouble, VariantToInt32, VariantToStringAlloc,
-    },
+    Variant::{VARIANT, VT_I4, VT_R8, VariantToInt32, VariantToStringAlloc},
 };
 use windows_core::BSTR;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Load<'a> {
-    pub staad: &'a IDispatch,
-    pub dispatch: IDispatch,
+    #[serde(skip)]
+    pub staad: Option<&'a IDispatch>,
+    #[serde(skip)]
+    pub dispatch: Option<IDispatch>,
 }
 
 impl<'a> Load<'a> {
-    pub fn new(staad: &'a IDispatch) -> Self {
-        let _load = unsafe { get_dispatch(staad, "Load", &mut []).unwrap() };
+    pub fn new(staad: Option<&'a IDispatch>) -> Self {
+        let _load = unsafe { get_dispatch(staad.unwrap(), "Load", &mut []).unwrap() };
         Self {
             staad,
-            dispatch: _load,
+            dispatch: Some(_load),
         }
     }
     /// Adds a Wind Definition named "varTypeName" with number ID varTypeNo.
@@ -39,7 +40,11 @@ impl<'a> Load<'a> {
     pub fn add_wind_definition(&self, type_no: i32, type_name: &str) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(type_name), VARIANT::from(type_no)];
-            let result_variant = invoke_method(&&self.dispatch, "AddWindDefinition", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddWindDefinition",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -120,7 +125,7 @@ impl<'a> Load<'a> {
             ];
 
             let result_variant = invoke_method(
-                &&self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "AddWindDefinitionASCE7Parameters",
                 &mut params,
             );
@@ -157,7 +162,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(exposure_factor),
                 VARIANT::from(type_no),
             ];
-            let result_variant = invoke_method(&&self.dispatch, "AddWindExposure", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddWindExposure",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -189,7 +198,11 @@ impl<'a> Load<'a> {
             let variant_height = variant_from_raw_pointer::<SafeArray<f64>>(sa_height);
 
             let mut params = [variant_height, variant_intensity, VARIANT::from(type_no)];
-            let result_variant = invoke_method(&&self.dispatch, "AddWindIntensity", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddWindIntensity",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -220,7 +233,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(intensity),
                 VARIANT::from(type_no),
             ];
-            let result_variant = invoke_method(&&self.dispatch, "AddWindIntensity", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddWindIntensity",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -282,7 +299,7 @@ impl<'a> Load<'a> {
             ];
 
             let result_variant = invoke_method(
-                &&self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "ComputeWallWindPressureProfile",
                 &mut params,
             );
@@ -347,7 +364,7 @@ impl<'a> Load<'a> {
             ];
 
             let result_variant = invoke_method(
-                &&self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "ComputeWallWindPressureProfileASCE72016",
                 &mut params,
             );
@@ -373,8 +390,11 @@ impl<'a> Load<'a> {
     pub fn delete_wind_definition(&self, type_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(type_no)];
-            let result_variant =
-                invoke_method(&&self.dispatch, "DeleteWindDefinition", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "DeleteWindDefinition",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -445,8 +465,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(rsa_code),
             ];
 
-            let result_variant =
-                invoke_method(&&self.dispatch, "AddResponseSpectrumLoadEx", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddResponseSpectrumLoadEx",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -474,8 +497,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(accidental as i32),
                 VARIANT::from(seismic_type),
             ];
-            let result_variant =
-                invoke_method(&&self.dispatch, "AddSeismicDefinition", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddSeismicDefinition",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -508,8 +534,11 @@ impl<'a> Load<'a> {
             let variant_nodes = variant_from_raw_pointer::<SafeArray<i32>>(sa_nodes);
 
             let mut params = [variant_nodes, VARIANT::from(weight)];
-            let result_variant =
-                invoke_method(&&self.dispatch, "AddSeismicDefJointWeight", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddSeismicDefJointWeight",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -553,8 +582,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(seismic_type),
             ];
 
-            let result_variant =
-                invoke_method(&&self.dispatch, "AddSeismicDefMemberWeight", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddSeismicDefMemberWeight",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -574,8 +606,11 @@ impl<'a> Load<'a> {
     pub fn add_seismic_def_self_weight(&self, weight_factor: f64) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(weight_factor)];
-            let result_variant =
-                invoke_method(&&self.dispatch, "AddSeismicDefSelfWeight", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddSeismicDefSelfWeight",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -613,8 +648,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(direction),
                 VARIANT::from(type_no),
             ];
-            let result_variant =
-                invoke_method(&&self.dispatch, "AddSeismicDefWallArea", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddSeismicDefWallArea",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -640,7 +678,7 @@ impl<'a> Load<'a> {
         unsafe {
             let mut params = [VARIANT::from(value), VARIANT::from(param_name)];
             let result_variant = invoke_method(
-                &&self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "ModifySeismicDefinitionParams",
                 &mut params,
             );
@@ -701,8 +739,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(load_case_title),
                 VARIANT::from(load_no),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateNewReferenceLoad", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateNewReferenceLoad",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -718,8 +759,13 @@ impl<'a> Load<'a> {
     /// * `<Val>` The number of reference load case.
     /// * `-1` General error.
     pub fn get_reference_load_case_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetReferenceLoadCaseCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetReferenceLoadCaseCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -749,8 +795,11 @@ impl<'a> Load<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetReferenceLoadCaseNumbers", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetReferenceLoadCaseNumbers",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -784,8 +833,11 @@ impl<'a> Load<'a> {
     pub fn set_reference_load_active(&self, load_case_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_case_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "SetReferenceLoadActive", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetReferenceLoadActive",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -826,7 +878,7 @@ impl<'a> Load<'a> {
             ];
 
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "AddDirectAnalysisDefinitionParameter",
                 &mut params,
             );
@@ -848,8 +900,13 @@ impl<'a> Load<'a> {
     /// * `true` OK.
     /// * `false` ERROR
     pub fn delete_direct_analysis_definition(&self) -> Result<bool, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "DeleteDirectAnalysisDefinition", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "DeleteDirectAnalysisDefinition",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -875,7 +932,7 @@ impl<'a> Load<'a> {
         unsafe {
             let mut params = [VARIANT::from(param_type)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "DeleteDirectAnalysisDefinitionParameter",
                 &mut params,
             );
@@ -905,7 +962,11 @@ impl<'a> Load<'a> {
     pub fn add_self_weight_in_xyz(&self, direction: i32, load_factor: f64) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_factor), VARIANT::from(direction)];
-            let result_variant = invoke_method(&self.dispatch, "AddSelfWeightInXYZ", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddSelfWeightInXYZ",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -944,8 +1005,11 @@ impl<'a> Load<'a> {
                 variant_geom_nos,
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "AddSelfWeightInXYZToGeometry", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddSelfWeightInXYZToGeometry",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -995,7 +1059,8 @@ impl<'a> Load<'a> {
                 variant_node_nos,
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "AddNodalLoad", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "AddNodalLoad", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1034,8 +1099,11 @@ impl<'a> Load<'a> {
                 variant_node_nos,
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "AddSupportDisplacement", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddSupportDisplacement",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1056,7 +1124,11 @@ impl<'a> Load<'a> {
     pub fn get_nodal_load_count(&self, node_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(node_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetNodalLoadCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNodalLoadCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1083,7 +1155,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_force, VARIANT::from(load_index)];
 
-            let result_variant = invoke_method(&self.dispatch, "GetNodalLoadInfo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNodalLoadInfo",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1163,7 +1239,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(node_no),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "GetNodalLoads", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNodalLoads",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1255,7 +1335,11 @@ impl<'a> Load<'a> {
 
             let mut params = [VARIANT::from(load), variant_beam_nos];
 
-            let result_variant = invoke_method(&self.dispatch, "AddMemberAreaLoad", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMemberAreaLoad",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1299,7 +1383,11 @@ impl<'a> Load<'a> {
                 variant_beam_nos,
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "AddMemberConcForce", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMemberConcForce",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1343,7 +1431,11 @@ impl<'a> Load<'a> {
                 variant_beam_nos,
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "AddMemberConcMoment", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMemberConcMoment",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1381,7 +1473,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_load_end, variant_load_start, variant_beam_nos];
 
-            let result_variant = invoke_method(&self.dispatch, "AddMemberFixedEnd", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMemberFixedEnd",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1424,7 +1520,11 @@ impl<'a> Load<'a> {
                 variant_beam_nos,
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "AddMemberLinearVari", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMemberLinearVari",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1472,7 +1572,11 @@ impl<'a> Load<'a> {
                 variant_beam_nos,
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "AddMemberTrapezoidal", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMemberTrapezoidal",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1520,8 +1624,11 @@ impl<'a> Load<'a> {
                 variant_beam_nos,
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "AddMemberUniformForce", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMemberUniformForce",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1569,8 +1676,11 @@ impl<'a> Load<'a> {
                 variant_beam_nos,
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "AddMemberUniformMoment", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMemberUniformMoment",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1591,7 +1701,11 @@ impl<'a> Load<'a> {
     pub fn get_conc_force_count(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetConcForceCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetConcForceCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1644,7 +1758,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(beam_no),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "GetConcForces", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetConcForces",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1710,7 +1828,11 @@ impl<'a> Load<'a> {
     pub fn get_conc_moment_count(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetConcMomentCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetConcMomentCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1763,7 +1885,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(beam_no),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "GetConcMoments", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetConcMoments",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1829,8 +1955,11 @@ impl<'a> Load<'a> {
     pub fn get_linear_varying_load_count(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetLinearVaryingLoadCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLinearVaryingLoadCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1883,8 +2012,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(beam_no),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetLinearVaryingLoads", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLinearVaryingLoads",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1972,7 +2104,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(load_index),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "GetMemberLoadInfo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMemberLoadInfo",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2021,7 +2157,11 @@ impl<'a> Load<'a> {
     pub fn get_trap_load_count(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetTrapLoadCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetTrapLoadCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2085,7 +2225,8 @@ impl<'a> Load<'a> {
                 VARIANT::from(beam_no),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "GetTrapLoads", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "GetTrapLoads", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2160,7 +2301,11 @@ impl<'a> Load<'a> {
     pub fn get_udl_load_count(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetUDLLoadCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetUDLLoadCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2224,7 +2369,8 @@ impl<'a> Load<'a> {
                 VARIANT::from(beam_no),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "GetUDLLoads", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "GetUDLLoads", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2299,7 +2445,11 @@ impl<'a> Load<'a> {
     pub fn get_uni_moment_count(&self, beam_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetUNIMomentCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetUNIMomentCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2363,7 +2513,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(beam_no),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "GetUNIMoments", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetUNIMoments",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2463,7 +2617,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(pressure),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "AddMemberFloorLoad", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMemberFloorLoad",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2524,7 +2682,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(range_type),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "AddMemberFloorLoadEx", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMemberFloorLoadEx",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2571,7 +2733,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(min_x),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "GetBeamCountAtFloor", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetBeamCountAtFloor",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2637,7 +2803,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(min_x),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "GetInfluenceArea", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetInfluenceArea",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2691,7 +2861,11 @@ impl<'a> Load<'a> {
         unsafe {
             let mut params = [VARIANT::from(factor), VARIANT::from(direction)];
 
-            let result_variant = invoke_method(&self.dispatch, "AddSeismicLoad", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddSeismicLoad",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2714,8 +2888,11 @@ impl<'a> Load<'a> {
     pub fn is_dynamic_load_included(&self, load_case: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_case)];
-            let result_variant =
-                invoke_method(&self.dispatch, "IsDynamicLoadIncluded", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "IsDynamicLoadIncluded",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2784,7 +2961,11 @@ impl<'a> Load<'a> {
                 variant_primary_cases,
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "AddNotionalLoad", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddNotionalLoad",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2817,7 +2998,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_factors, variant_ref_cases];
 
-            let result_variant = invoke_method(&self.dispatch, "AddReferenceLoad", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddReferenceLoad",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2846,7 +3031,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_factors, variant_load_cases];
 
-            let result_variant = invoke_method(&self.dispatch, "AddRepeatLoad", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddRepeatLoad",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2859,7 +3048,8 @@ impl<'a> Load<'a> {
 
     /// Begin Load Merging.
     pub fn begin_load_merging(&self) -> Result<(), anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "BeginLoadMerging", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "BeginLoadMerging", &mut []) };
         match result_variant {
             Ok(_) => anyOk(()),
             Err(e) => bail!("Error::Load::begin_load_merging: {}", e),
@@ -2868,7 +3058,8 @@ impl<'a> Load<'a> {
 
     /// End Load Merging.
     pub fn end_load_merging(&self) -> Result<(), anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "EndLoadMerging", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "EndLoadMerging", &mut []) };
         match result_variant {
             Ok(_) => anyOk(()),
             Err(e) => bail!("Error::Load::end_load_merging: {}", e),
@@ -2886,7 +3077,7 @@ impl<'a> Load<'a> {
         unsafe {
             let mut params = [VARIANT::from(index)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetNoLoadFactorDirectionInNotionalLoad",
                 &mut params,
             );
@@ -2913,8 +3104,11 @@ impl<'a> Load<'a> {
     pub fn get_no_load_factor_in_repeat_load(&self, index: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(index)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetNoLoadFactorInRepeatLoad", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNoLoadFactorInRepeatLoad",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2935,8 +3129,11 @@ impl<'a> Load<'a> {
     pub fn get_no_of_sets_in_reference_load(&self, index: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(index)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetNoOfSetsInReferenceLoad", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNoOfSetsInReferenceLoad",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -2987,8 +3184,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(index),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetNotionalLoadByIndex", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNotionalLoadByIndex",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_size = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3040,8 +3240,13 @@ impl<'a> Load<'a> {
     /// * `<Val>` The number of Notional load.
     /// * `-1` General error.
     pub fn get_notional_load_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetNotionalLoadCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNotionalLoadCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -3080,8 +3285,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_factors, variant_loads, VARIANT::from(index)];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetReferenceLoadByIndex", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetReferenceLoadByIndex",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3128,8 +3336,11 @@ impl<'a> Load<'a> {
     pub fn get_reference_load_case_title(&self, load_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetReferenceLoadCaseTitle", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetReferenceLoadCaseTitle",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToStringAlloc(&var as *const VARIANT)
@@ -3147,8 +3358,13 @@ impl<'a> Load<'a> {
     /// * `<Val>` The number of reference load case item(s).
     /// * `-1` General error.
     pub fn get_reference_load_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetReferenceLoadCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetReferenceLoadCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -3168,7 +3384,11 @@ impl<'a> Load<'a> {
     pub fn get_reference_load_type(&self, load_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetReferenceLoadType", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetReferenceLoadType",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3208,7 +3428,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_factors, variant_loads, VARIANT::from(index)];
 
-            let result_variant = invoke_method(&self.dispatch, "GetRepeatLoadByIndex", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetRepeatLoadByIndex",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3251,8 +3475,13 @@ impl<'a> Load<'a> {
     /// * `<Val>` The number of repeat load commands in the active load case.
     /// * `0` General error.
     pub fn get_repeat_load_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetRepeatLoadCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetRepeatLoadCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -3308,7 +3537,8 @@ impl<'a> Load<'a> {
                 VARIANT::from(type_no),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "AddWindLoad", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "AddWindLoad", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3384,8 +3614,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(code),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "AddAutoCombinationRepeat", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddAutoCombinationRepeat",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3431,8 +3664,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(code),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "AddAutoLoadCombinations", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddAutoLoadCombinations",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3465,8 +3701,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(load_comb_no),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "AddLoadAndFactorToCombination", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddLoadAndFactorToCombination",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3493,8 +3732,11 @@ impl<'a> Load<'a> {
         unsafe {
             let mut params = [VARIANT::from(load_comb_no), VARIANT::from(title)];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateNewLoadCombination", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateNewLoadCombination",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3539,7 +3781,7 @@ impl<'a> Load<'a> {
             let mut params = [variant_factors, variant_loads, VARIANT::from(load_comb_no)];
 
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetLoadAndFactorForCombination",
                 &mut params,
             );
@@ -3586,8 +3828,13 @@ impl<'a> Load<'a> {
     /// # Returns
     /// The total number of combination load cases(s).
     pub fn get_load_combination_case_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetLoadCombinationCaseCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLoadCombinationCaseCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -3617,8 +3864,11 @@ impl<'a> Load<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetLoadCombinationCaseNumbers", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLoadCombinationCaseNumbers",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3655,7 +3905,7 @@ impl<'a> Load<'a> {
         unsafe {
             let mut params = [VARIANT::from(load_comb_no)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetNoOfLoadAndFactorPairsForCombination",
                 &mut params,
             );
@@ -3684,7 +3934,11 @@ impl<'a> Load<'a> {
     pub fn is_combination_case(&self, load_case: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_case)];
-            let result_variant = invoke_method(&self.dispatch, "IsCombinationCase", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "IsCombinationCase",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3719,7 +3973,11 @@ impl<'a> Load<'a> {
 
             let mut params = [VARIANT::from(is_reference_loads), variant_load_cases];
 
-            let result_variant = invoke_method(&self.dispatch, "ClearPrimaryLoadCase", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "ClearPrimaryLoadCase",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3744,8 +4002,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_load_cases];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "ClearReferenceLoadCase", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "ClearReferenceLoadCase",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3775,7 +4036,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_load_cases, VARIANT::from(list_type)];
 
-            let result_variant = invoke_method(&self.dispatch, "CreateLoadList", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateLoadList",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3798,7 +4063,11 @@ impl<'a> Load<'a> {
         unsafe {
             let mut params = [VARIANT::from(title)];
 
-            let result_variant = invoke_method(&self.dispatch, "CreateNewPrimaryLoad", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateNewPrimaryLoad",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3822,8 +4091,11 @@ impl<'a> Load<'a> {
         unsafe {
             let mut params = [VARIANT::from(load_type), VARIANT::from(title)];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateNewPrimaryLoadEx", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateNewPrimaryLoadEx",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3856,8 +4128,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(title),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateNewPrimaryLoadEx2", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateNewPrimaryLoadEx2",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3879,7 +4154,11 @@ impl<'a> Load<'a> {
         unsafe {
             let mut params = [VARIANT::from(load_list_index)];
 
-            let result_variant = invoke_method(&self.dispatch, "DeleteLoadList", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "DeleteLoadList",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3909,8 +4188,11 @@ impl<'a> Load<'a> {
 
             let mut params = [VARIANT::from(is_reference_loads), variant_load_cases];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "DeletePrimaryLoadCases", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "DeletePrimaryLoadCases",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3935,8 +4217,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_load_cases];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "DeleteReferenceLoadCases", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "DeleteReferenceLoadCases",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -3952,7 +4237,8 @@ impl<'a> Load<'a> {
     /// * `<Val>` Active load case number ID.
     /// * `-1` General error.
     pub fn get_active_load(&self) -> Result<i32, anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "GetActiveLoad", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetActiveLoad", &mut []) };
         match result_variant {
             Ok(var) => {
                 let result_id = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -3989,8 +4275,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant, VARIANT::from(load_index), VARIANT::from(load_type)];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetAssignmentListForLoadType", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetAssignmentListForLoadType",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_size = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4024,7 +4313,8 @@ impl<'a> Load<'a> {
     pub fn get_attribute(&self, load_case: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_case)];
-            let result_variant = invoke_method(&self.dispatch, "GetAttribute", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "GetAttribute", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4049,8 +4339,11 @@ impl<'a> Load<'a> {
     ) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_index), VARIANT::from(load_type)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetListSizeForLoadType", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetListSizeForLoadType",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_size = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4071,7 +4364,11 @@ impl<'a> Load<'a> {
     pub fn get_load_case_title(&self, load_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetLoadCaseTitle", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLoadCaseTitle",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToStringAlloc(&var as *const VARIANT)
@@ -4093,8 +4390,11 @@ impl<'a> Load<'a> {
     pub fn get_load_count_in_load_list(&self, load_list_index: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_list_index)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetLoadCountInLoadList", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLoadCountInLoadList",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4115,7 +4415,11 @@ impl<'a> Load<'a> {
     pub fn get_load_items_count(&self, load_case_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_case_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetLoadItemsCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLoadItemsCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4141,7 +4445,11 @@ impl<'a> Load<'a> {
     ) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_item_index), VARIANT::from(load_case_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetLoadItemType", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLoadItemType",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_type = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4157,7 +4465,8 @@ impl<'a> Load<'a> {
     /// * `<Val>` The number of load list(s).
     /// * `-1` General error.
     pub fn get_load_list_count(&self) -> Result<i32, anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "GetLoadListCount", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetLoadListCount", &mut []) };
         match result_variant {
             Ok(var) => {
                 let result_count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -4189,7 +4498,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant, VARIANT::from(load_list_index)];
 
-            let result_variant = invoke_method(&self.dispatch, "GetLoadsInLoadList", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLoadsInLoadList",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4223,7 +4536,8 @@ impl<'a> Load<'a> {
     pub fn get_load_type(&self, load_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetLoadType", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "GetLoadType", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result_type = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4244,7 +4558,11 @@ impl<'a> Load<'a> {
     pub fn get_load_type_count(&self, load_type: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_type)];
-            let result_variant = invoke_method(&self.dispatch, "GetLoadTypeCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLoadTypeCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4276,8 +4594,11 @@ impl<'a> Load<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetPrimaryLoadCaseNumbers", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetPrimaryLoadCaseNumbers",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4311,7 +4632,11 @@ impl<'a> Load<'a> {
     pub fn remove_attribute(&self, load_case: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_case)];
-            let result_variant = invoke_method(&self.dispatch, "RemoveAttribute", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "RemoveAttribute",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4343,7 +4668,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(strength_type),
                 VARIANT::from(load_case),
             ];
-            let result_variant = invoke_method(&self.dispatch, "SetASDLoadAttribute", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetASDLoadAttribute",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4369,7 +4698,8 @@ impl<'a> Load<'a> {
 
             let mut params = [VARIANT::from(load_type), variant_load_nos];
 
-            let result_variant = invoke_method(&self.dispatch, "SetLoadType", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "SetLoadType", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4390,7 +4720,11 @@ impl<'a> Load<'a> {
     pub fn set_lsd_load_attribute(&self, load_case: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_case)];
-            let result_variant = invoke_method(&self.dispatch, "SetLSDLoadAttribute", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetLSDLoadAttribute",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4404,8 +4738,13 @@ impl<'a> Load<'a> {
     /// # Returns
     /// The total number of primary load case(s).
     pub fn get_primary_load_case_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetPrimaryLoadCaseCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetPrimaryLoadCaseCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let result_count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -4425,7 +4764,11 @@ impl<'a> Load<'a> {
     pub fn set_load_active(&self, load_no: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(load_no)];
-            let result_variant = invoke_method(&self.dispatch, "SetLoadActive", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetLoadActive",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4455,8 +4798,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_load_cases, VARIANT::from(env_no)];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "AddLoadCasesToEnvelop", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddLoadCasesToEnvelop",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4492,7 +4838,11 @@ impl<'a> Load<'a> {
                 VARIANT::from(env_no),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "CreateLoadEnvelop", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateLoadEnvelop",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4514,7 +4864,11 @@ impl<'a> Load<'a> {
         unsafe {
             let mut params = [VARIANT::from(env_no)];
 
-            let result_variant = invoke_method(&self.dispatch, "DeleteLoadEnvelop", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "DeleteLoadEnvelop",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4529,7 +4883,8 @@ impl<'a> Load<'a> {
     /// # Return values
     /// Total Number of load Envelopes present.
     pub fn get_envelope_count(&self) -> Result<i32, anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "GetEnvelopeCount", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetEnvelopeCount", &mut []) };
         match result_variant {
             Ok(var) => {
                 let result_count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -4557,7 +4912,11 @@ impl<'a> Load<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
-            let result_variant = invoke_method(&self.dispatch, "GetEnvelopeIDs", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetEnvelopeIDs",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4599,8 +4958,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_load_count, variant_env_type, VARIANT::from(env_no)];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetLoadEnvelopeDetails", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLoadEnvelopeDetails",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4635,8 +4997,11 @@ impl<'a> Load<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(env_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetLoadListfromLoadEnvelope", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetLoadListfromLoadEnvelope",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4679,8 +5044,11 @@ impl<'a> Load<'a> {
 
             let mut params = [variant_load_cases, VARIANT::from(env_no)];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "RemoveLoadCasesFromEnvelop", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "RemoveLoadCasesFromEnvelop",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -4691,6 +5059,9 @@ impl<'a> Load<'a> {
         }
     }
 }
+
+unsafe impl<'a> Send for Load<'a> {}
+unsafe impl<'a> Sync for Load<'a> {}
 
 // ********** Definitions **********
 // :: Wind

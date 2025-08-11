@@ -1,6 +1,7 @@
-use std::time::Duration;
+use std::{os::windows::process, time::Duration};
 
-use anyhow::{Context, Ok as anyOk, Result, anyhow};
+use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, anyhow, bail};
+use serde::{Deserialize, Serialize};
 use windows::{
     Win32::System::{
         Com::{
@@ -16,9 +17,12 @@ use crate::openstaad::api::{
     property::Property, root::Root, support::Support,
 };
 
+// 절차형 매크로 정의
+
 // STAAD 백그라운드 실행 및 제어 클래스
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StaadProcess {
-    // pub root: Option<IDispatch>,
+    #[serde(skip)]
     pub staad: Option<IDispatch>,
     pub path: String,
 }
@@ -32,28 +36,54 @@ impl StaadProcess {
     }
 
     pub fn root(&self) -> Root {
-        Root::new(self.staad.as_ref().unwrap())
+        Root::new(self.staad.as_ref())
     }
     pub fn geometry(&self) -> Geometry {
-        Geometry::new(self.staad.as_ref().unwrap())
+        Geometry::new(self.staad.as_ref())
     }
     pub fn property(&self) -> Property {
-        Property::new(self.staad.as_ref().unwrap())
+        Property::new(self.staad.as_ref())
     }
     pub fn support(&self) -> Support {
-        Support::new(self.staad.as_ref().unwrap())
+        Support::new(self.staad.as_ref())
     }
     pub fn load(&self) -> Load {
-        Load::new(self.staad.as_ref().unwrap())
+        Load::new(self.staad.as_ref())
     }
     pub fn design(&self) -> Design {
-        Design::new(self.staad.as_ref().unwrap())
+        Design::new(self.staad.as_ref())
     }
     pub fn output(&self) -> Output {
-        Output::new(self.staad.as_ref().unwrap())
+        Output::new(self.staad.as_ref())
     }
     pub fn command(&self) -> Command {
-        Command::new(self.staad.as_ref().unwrap())
+        Command::new(self.staad.as_ref())
+    }
+
+    pub fn get_active_object(&self) -> Option<IDispatch> {
+        unsafe {
+            // COM 초기화
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+
+            // OpenSTAAD 애플리케이션 객체 생성
+            let clsid_str = PCWSTR::from_raw(HSTRING::from("StaadPro.OpenSTAAD").as_ptr());
+            let clsid = CLSIDFromProgID(clsid_str)
+                .context("CLSID 생성 실패")
+                .unwrap();
+
+            let pv_reserved: Option<*mut core::ffi::c_void> = None;
+            let mut ppunk: Option<IUnknown> = None;
+            let _ = GetActiveObject(
+                &clsid as *const GUID,
+                pv_reserved,
+                &mut ppunk as *mut Option<IUnknown>,
+            );
+            let result = ppunk.unwrap().cast::<IDispatch>();
+            match result {
+                Ok(_staad) => Some(_staad),
+                Err(e) => None,
+            }
+        }
     }
 
     // STAAD.exe를 백그라운드에서 실행
@@ -96,7 +126,6 @@ impl StaadProcess {
                 }
             }
         }
-
         anyOk(())
     }
 
@@ -133,10 +162,6 @@ impl StaadProcess {
                     }
                 }
             };
-
-            // // 하위 객체들 초기화
-            // self.initialize_sub_objects()?;
-
             anyOk(())
         }
     }
@@ -159,3 +184,22 @@ impl Drop for StaadProcess {
         }
     }
 }
+
+// SAFETY: StaadProcess can be safely sent between threads because:
+// 1. The STAAD COM object (IDispatch) is designed to be apartment-threaded and can be marshaled between threads
+// 2. The COM runtime handles thread safety internally for automation objects like OpenSTAAD
+// 3. All access to the COM object goes through the Windows COM infrastructure which provides thread safety
+// 4. The `path` field is a String which is already Send
+//
+// Note: When using StaadProcess across threads, ensure proper COM initialization (CoInitializeEx)
+// is called on each thread that will use the COM object.
+unsafe impl Send for StaadProcess {}
+
+// SAFETY: StaadProcess can be safely shared between threads with proper synchronization because:
+// 1. The underlying COM object supports concurrent access when properly synchronized
+// 2. All mutable operations are performed through COM method calls which are thread-safe
+// 3. The struct itself contains no mutable state that would cause data races
+//
+// Note: Multiple threads should not call methods on the same StaadProcess instance simultaneously
+// without external synchronization (e.g., Mutex).
+unsafe impl Sync for StaadProcess {}

@@ -1,29 +1,32 @@
 use crate::openstaad::tools::{
-    invoke::{get_dispatch, invoke_method},
+    com::{get_dispatch, invoke_method},
     parameters::DesignParameters,
     safe_array::safe_array_from_vec1d,
     variant::{SafeArray, variant_from_raw_pointer},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
+use serde::{Deserialize, Serialize};
 use windows::Win32::System::{
     Com::{CLSCTX_LOCAL_SERVER, CLSIDFromProgID, CoCreateInstance, IDispatch},
     Variant::{VARIANT, VariantToInt32},
 };
 use windows_core::{HSTRING, PCWSTR};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Design<'a> {
-    pub staad: &'a IDispatch,
-    pub dispatch: IDispatch,
+    #[serde(skip)]
+    pub staad: Option<&'a IDispatch>,
+    #[serde(skip)]
+    pub dispatch: Option<IDispatch>,
 }
 
 impl<'a> Design<'a> {
-    pub fn new(staad: &'a IDispatch) -> Self {
-        let _design = unsafe { get_dispatch(staad, "Design", &mut []).unwrap() };
+    pub fn new(staad: Option<&'a IDispatch>) -> Self {
+        let _design = unsafe { get_dispatch(staad.unwrap(), "Design", &mut []).unwrap() };
         Self {
             staad,
-            dispatch: _design,
+            dispatch: Some(_design),
         }
     }
 
@@ -53,7 +56,11 @@ impl<'a> Design<'a> {
                 VARIANT::from(command_name),
                 VARIANT::from(brief_ref),
             ];
-            let result_variant = invoke_method(&self.dispatch, "AssignDesignCommand", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignDesignCommand",
+                &mut params,
+            );
             match result_variant {
                 Ok(v) => {
                     let result_code = VariantToInt32(&v as *const VARIANT).unwrap();
@@ -93,7 +100,11 @@ impl<'a> Design<'a> {
                 VARIANT::from(command_name),
                 VARIANT::from(brief_ref),
             ];
-            let result_variant = invoke_method(&self.dispatch, "AssignDesignGroup", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignDesignGroup",
+                &mut params,
+            );
             match result_variant {
                 Ok(v) => {
                     let result_code = VariantToInt32(&v as *const VARIANT).unwrap();
@@ -130,8 +141,11 @@ impl<'a> Design<'a> {
                 VARIANT::from(param_name),
                 VARIANT::from(brief_ref),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "AssignDesignParameter", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignDesignParameter",
+                &mut params,
+            );
             match result_variant {
                 Ok(v) => {
                     let result_code = VariantToInt32(&v as *const VARIANT).unwrap();
@@ -151,7 +165,11 @@ impl<'a> Design<'a> {
     pub fn create_design_brief(&self, design_code: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(design_code)];
-            let result_variant = invoke_method(&self.dispatch, "CreateDesignBrief", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateDesignBrief",
+                &mut params,
+            );
             match result_variant {
                 Ok(v) => {
                     let brief_ref = VariantToInt32(&v as *const VARIANT).unwrap();
@@ -171,7 +189,11 @@ impl<'a> Design<'a> {
     pub fn get_design_brief_code(&self, brief_ref: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(brief_ref)];
-            let result_variant = invoke_method(&self.dispatch, "GetDesignBriefCode", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetDesignBriefCode",
+                &mut params,
+            );
             match result_variant {
                 Ok(v) => {
                     let design_code = VariantToInt32(&v as *const VARIANT).unwrap();
@@ -199,8 +221,11 @@ impl<'a> Design<'a> {
                 VARIANT::from(member_no),
                 VARIANT::from(brief_ref),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetMemberDesignParameters", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMemberDesignParameters",
+                &mut params,
+            );
 
             let params_dispatch = (*instace_ptr).as_ref().unwrap();
             let design_params = DesignParameters::new(params_dispatch);
@@ -215,3 +240,6 @@ impl<'a> Design<'a> {
         }
     }
 }
+
+unsafe impl<'a> Send for Design<'a> {}
+unsafe impl<'a> Sync for Design<'a> {}

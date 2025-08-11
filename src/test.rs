@@ -2,28 +2,182 @@ mod openstaad;
 
 use openstaad::process::StaadProcess;
 use windows::Win32::System::Com::CoUninitialize;
+use std::sync::Mutex;
+use tauri::State;
+use serde::Serialize;
 
 use crate::openstaad::api::{geometry::Geometry, root::Root};
 
-#[tokio::main]
-async fn main() {
-    // Example usage of StaadProcess
-    println!("OpenSTAAD Rust Library");
-    let process = StaadProcess::new("");
-    let _root = process.root();
-    
-    match _root.get_base_unit() {
-        Ok(base_unit) => println!("Base unit: {:#?}", base_unit),
-        Err(e) => println!("Error getting base unit: {:#?}", e),
+// Tauri application state
+struct AppState {
+    staad_process: Mutex<Option<StaadProcess>>,
+}
+
+#[derive(Serialize)]
+struct ApiResponse<T> {
+    success: bool,
+    data: Option<T>,
+    error: Option<String>,
+}
+
+impl<T> ApiResponse<T> {
+    fn success(data: T) -> Self {
+        ApiResponse {
+            success: true,
+            data: Some(data),
+            error: None,
+        }
     }
 
-    let _geometry = process.geometry();
-    match _geometry.get_node_list() {
-        Ok(v) => println!("Node list result: {:#?}", v),
-        Err(e) => println!("Node list error: {:#?}", e),
+    fn error(msg: String) -> Self {
+        ApiResponse {
+            success: false,
+            data: None,
+            error: Some(msg),
+        }
     }
-    
-    unsafe { CoUninitialize() };
+}
+
+// Tauri commands for StaadProcess.root() methods
+#[tauri::command]
+fn get_base_unit(state: State<AppState>) -> ApiResponse<i32> {
+    let process_guard = state.staad_process.lock().unwrap();
+    if let Some(process) = process_guard.as_ref() {
+        let root = process.root();
+        match root.get_base_unit() {
+            Ok(unit) => ApiResponse::success(unit),
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    } else {
+        ApiResponse::error("StaadProcess not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+fn get_application_version(state: State<AppState>) -> ApiResponse<(String, i32, i32, i32, i32)> {
+    let process_guard = state.staad_process.lock().unwrap();
+    if let Some(process) = process_guard.as_ref() {
+        let root = process.root();
+        match root.get_application_version() {
+            Ok(version) => ApiResponse::success(version),
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    } else {
+        ApiResponse::error("StaadProcess not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+fn get_staad_file(state: State<AppState>, full_path: bool) -> ApiResponse<String> {
+    let process_guard = state.staad_process.lock().unwrap();
+    if let Some(process) = process_guard.as_ref() {
+        let root = process.root();
+        match root.get_staad_file(full_path) {
+            Ok(file) => ApiResponse::success(file),
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    } else {
+        ApiResponse::error("StaadProcess not initialized".to_string())
+    }
+}
+
+// Tauri commands for StaadProcess.geometry() methods
+#[tauri::command]
+fn get_node_list(state: State<AppState>) -> ApiResponse<Vec<i32>> {
+    let process_guard = state.staad_process.lock().unwrap();
+    if let Some(process) = process_guard.as_ref() {
+        let geometry = process.geometry();
+        match geometry.get_node_list() {
+            Ok(nodes) => ApiResponse::success(nodes),
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    } else {
+        ApiResponse::error("StaadProcess not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+fn get_node_count(state: State<AppState>) -> ApiResponse<i32> {
+    let process_guard = state.staad_process.lock().unwrap();
+    if let Some(process) = process_guard.as_ref() {
+        let geometry = process.geometry();
+        match geometry.get_node_count() {
+            Ok(count) => ApiResponse::success(count),
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    } else {
+        ApiResponse::error("StaadProcess not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+fn get_node_coordinates(state: State<AppState>, node_no: i32, base_unit: i32) -> ApiResponse<Vec<f64>> {
+    let process_guard = state.staad_process.lock().unwrap();
+    if let Some(process) = process_guard.as_ref() {
+        let geometry = process.geometry();
+        match geometry.get_node_coordinates(node_no, base_unit) {
+            Ok(coords) => ApiResponse::success(coords),
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    } else {
+        ApiResponse::error("StaadProcess not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+fn get_member_count(state: State<AppState>) -> ApiResponse<i32> {
+    let process_guard = state.staad_process.lock().unwrap();
+    if let Some(process) = process_guard.as_ref() {
+        let geometry = process.geometry();
+        match geometry.get_member_count() {
+            Ok(count) => ApiResponse::success(count),
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    } else {
+        ApiResponse::error("StaadProcess not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+fn create_node(state: State<AppState>, node_no: i32, x: f64, y: f64, z: f64) -> ApiResponse<()> {
+    let process_guard = state.staad_process.lock().unwrap();
+    if let Some(process) = process_guard.as_ref() {
+        let geometry = process.geometry();
+        match geometry.create_node(node_no, x, y, z) {
+            Ok(()) => ApiResponse::success(()),
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    } else {
+        ApiResponse::error("StaadProcess not initialized".to_string())
+    }
+}
+
+// Initialize StaadProcess command
+#[tauri::command]
+fn initialize_staad_process(state: State<AppState>, staad_path: String) -> ApiResponse<()> {
+    let mut process_guard = state.staad_process.lock().unwrap();
+    *process_guard = Some(StaadProcess::new(&staad_path));
+    ApiResponse::success(())
+}
+
+fn main() {
+    tauri::Builder::default()
+        .manage(AppState {
+            staad_process: Mutex::new(None),
+        })
+        .invoke_handler(tauri::generate_handler![
+            initialize_staad_process,
+            get_base_unit,
+            get_application_version,
+            get_staad_file,
+            get_node_list,
+            get_node_count,
+            get_node_coordinates,
+            get_member_count,
+            create_node
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
 
 // fn test_root_methods(root: &Root) {

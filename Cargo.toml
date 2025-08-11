@@ -5,7 +5,7 @@ edition = "2024"
 
 [lib]
 name = "openstaad_rust"
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
 windows = { version = "0.61.3", features = [
@@ -18,3 +18,8 @@ windows-core = "0.61.2"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0.98"
 notify = { version = "8.1.0", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+uuid = { version = "1.0", features = ["v4"] }

@@ -1,10 +1,11 @@
 use crate::openstaad::tools::{
-    invoke::{get_dispatch, invoke_method},
+    com::{get_dispatch, invoke_method},
     safe_array::safe_array_from_vec1d,
     variant::{SafeArray, SafeArrayP, variant_from_raw_pointer},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
+use serde::{Deserialize, Serialize};
 use std::ffi::c_void;
 use windows::Win32::System::{
     Com::{IDispatch, SAFEARRAY},
@@ -12,18 +13,20 @@ use windows::Win32::System::{
     Variant::{VARIANT, VT_I4, VT_R8, VariantToInt32, VariantToStringAlloc},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Support<'a> {
-    pub staad: &'a IDispatch,
-    pub dispatch: IDispatch,
+    #[serde(skip)]
+    pub staad: Option<&'a IDispatch>,
+    #[serde(skip)]
+    pub dispatch: Option<IDispatch>,
 }
 
 impl<'a> Support<'a> {
-    pub fn new(staad: &'a IDispatch) -> Self {
-        let _support = unsafe { get_dispatch(staad, "Support", &mut []).unwrap() };
+    pub fn new(staad: Option<&'a IDispatch>) -> Self {
+        let _support = unsafe { get_dispatch(staad.unwrap(), "Support", &mut []).unwrap() };
         Self {
             staad,
-            dispatch: _support,
+            dispatch: Some(_support),
         }
     }
 
@@ -37,7 +40,11 @@ impl<'a> Support<'a> {
     pub fn assign_support_to_node(&self, node_no: i32, support_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(support_no), VARIANT::from(node_no)];
-            let result_variant = invoke_method(&self.dispatch, "AssignSupportToNode", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AssignSupportToNode",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -95,8 +102,11 @@ impl<'a> Support<'a> {
                 VARIANT::from(inclined_type),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateInclinedSupport", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateInclinedSupport",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let support_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -112,8 +122,13 @@ impl<'a> Support<'a> {
     /// * `<Val>` Support Reference number ID.
     /// * `-1` General error.
     pub fn create_support_fixed(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "CreateSupportFixed", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateSupportFixed",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let support_id = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -144,8 +159,11 @@ impl<'a> Support<'a> {
 
             let mut params = [variant_spring, variant_release];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "CreateSupportFixedBut", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateSupportFixedBut",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let support_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -161,8 +179,13 @@ impl<'a> Support<'a> {
     /// * `<Val>` Support Reference number ID.
     /// * `-1` General error.
     pub fn create_support_pinned(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "CreateSupportPinned", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateSupportPinned",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let support_id = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -181,7 +204,11 @@ impl<'a> Support<'a> {
     pub fn delete_support(&self, support_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(support_no)];
-            let result_variant = invoke_method(&self.dispatch, "DeleteSupport", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "DeleteSupport",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -200,7 +227,11 @@ impl<'a> Support<'a> {
     pub fn get_support_name(&self, support_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(support_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetSupportName", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSupportName",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let support_name = VariantToStringAlloc(&var as *const VARIANT)
@@ -221,7 +252,11 @@ impl<'a> Support<'a> {
     pub fn get_support_unique_id(&self, support_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(support_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetSupportUniqueID", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSupportUniqueID",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let unique_id = VariantToStringAlloc(&var as *const VARIANT)
@@ -243,8 +278,11 @@ impl<'a> Support<'a> {
     pub fn remove_support_from_node(&self, node_no: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(node_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "RemoveSupportFromNode", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "RemoveSupportFromNode",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let success = VariantToInt32(&var as *const VARIANT).unwrap() > 0;
@@ -262,7 +300,11 @@ impl<'a> Support<'a> {
     pub fn set_support_unique_id(&self, support_no: i32, unique_id: &str) -> Result<(), anyErr> {
         unsafe {
             let mut params = [VARIANT::from(unique_id), VARIANT::from(support_no)];
-            let result_variant = invoke_method(&self.dispatch, "SetSupportUniqueID", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetSupportUniqueID",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Support::set_support_unique_id: {}", e),
@@ -274,7 +316,8 @@ impl<'a> Support<'a> {
     /// # Returns
     /// * The number of support.
     pub fn get_support_count(&self) -> Result<i32, anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "GetSupportCount", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetSupportCount", &mut []) };
         match result_variant {
             Ok(var) => {
                 let count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -323,8 +366,11 @@ impl<'a> Support<'a> {
                 VARIANT::from(support_node),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetSupportInformation", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSupportInformation",
+                &mut params,
+            );
 
             match result_variant {
                 Ok(var) => {
@@ -410,8 +456,11 @@ impl<'a> Support<'a> {
                 VARIANT::from(support_node),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetSupportInformationEx", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSupportInformationEx",
+                &mut params,
+            );
 
             match result_variant {
                 Ok(var) => {
@@ -475,7 +524,11 @@ impl<'a> Support<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
-            let result_variant = invoke_method(&self.dispatch, "GetSupportNodes", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSupportNodes",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let node_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -521,7 +574,11 @@ impl<'a> Support<'a> {
     pub fn get_support_type(&self, support_node: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(support_node)];
-            let result_variant = invoke_method(&self.dispatch, "GetSupportType", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSupportType",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let support_type = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -532,6 +589,9 @@ impl<'a> Support<'a> {
         }
     }
 }
+
+unsafe impl<'a> Send for Support<'a> {}
+unsafe impl<'a> Sync for Support<'a> {}
 
 // AssignSupportToNode
 // CreateInclinedSupport

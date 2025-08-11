@@ -1,12 +1,13 @@
 use anyhow::Context;
+use serde::{Deserialize, Serialize};
 use windows::Win32::System::{
     Com::IDispatch,
     Variant::{VARIANT, VariantToInt32, VariantToStringAlloc},
 };
 
-use crate::openstaad::tools::invoke::invoke_method;
+use crate::openstaad::tools::com::invoke_method;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DesignParameters {
     pub name: Vec<String>,
     pub value: Vec<String>,

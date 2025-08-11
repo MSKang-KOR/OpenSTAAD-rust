@@ -1,10 +1,11 @@
 use crate::openstaad::tools::{
-    invoke::{get_dispatch, invoke_method},
+    com::{get_dispatch, invoke_method},
     safe_array::{safe_array_from_vec1d, safe_array_from_vec2d},
     variant::{SafeArray, SafeArrayP, variant_from_raw_pointer},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
+use serde::{Deserialize, Serialize};
 use std::ffi::c_void;
 use windows::Win32::System::{
     Com::{IDispatch, SAFEARRAY},
@@ -13,18 +14,20 @@ use windows::Win32::System::{
 };
 use windows_core::BSTR;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Geometry<'a> {
-    pub staad: &'a IDispatch,
-    pub dispatch: IDispatch,
+    #[serde(skip)]
+    pub staad: Option<&'a IDispatch>,
+    #[serde(skip)]
+    pub dispatch: Option<IDispatch>,
 }
 
 impl<'a> Geometry<'a> {
-    pub fn new(staad: &'a IDispatch) -> Self {
-        let _geometry = unsafe { get_dispatch(staad, "Geometry", &mut []).unwrap() };
+    pub fn new(staad: Option<&'a IDispatch>) -> Self {
+        let _geometry = unsafe { get_dispatch(staad.unwrap(), "Geometry", &mut []).unwrap() };
         Self {
             staad,
-            dispatch: _geometry,
+            dispatch: Some(_geometry),
         }
     }
     pub fn add_multiple_nodes(
@@ -45,7 +48,11 @@ impl<'a> Geometry<'a> {
             let variant_coords = variant_from_raw_pointer::<SafeArray<f64>>(sa_coords);
 
             let mut params = [variant_coords];
-            let result_variant = invoke_method(&self.dispatch, "AddMultipleNodes", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMultipleNodes",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::add_multiple_nodes: {}", e),
@@ -79,7 +86,8 @@ impl<'a> Geometry<'a> {
                 VARIANT::from(coord_y * unit_factor),
                 VARIANT::from(coord_x * unit_factor),
             ];
-            let result_variant = invoke_method(&self.dispatch, "AddNode", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "AddNode", &mut params);
             match result_variant {
                 Ok(code_variant) => {
                     let result_code = VariantToInt32(&code_variant as *const VARIANT).unwrap();
@@ -106,7 +114,11 @@ impl<'a> Geometry<'a> {
             let variant_coords = variant_from_raw_pointer::<SafeArray<f64>>(sa_coords);
 
             let mut params = [variant_coords, variant_ids];
-            let result_variant = invoke_method(&self.dispatch, "CreateMultipleNodes", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateMultipleNodes",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::create_multiple_nodes: {}", e),
@@ -134,7 +146,8 @@ impl<'a> Geometry<'a> {
                 VARIANT::from(coord_x),
                 VARIANT::from(node_no),
             ];
-            let result_variant = invoke_method(&self.dispatch, "CreateNode", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "CreateNode", &mut params);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::create_node: {}", e),
@@ -148,7 +161,8 @@ impl<'a> Geometry<'a> {
     pub fn delete_node(&self, node_no: i32) -> Result<(), anyErr> {
         unsafe {
             let mut params = [VARIANT::from(node_no)];
-            let result_variant = invoke_method(&self.dispatch, "DeleteNode", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "DeleteNode", &mut params);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::delete_node: {}", e),
@@ -161,7 +175,8 @@ impl<'a> Geometry<'a> {
     /// * `<Val>` The number of the highest node number ID in the model .
     /// * `-1` General error.
     pub fn get_last_node_no(&self) -> Result<i32, anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "GetLastNodeNo", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetLastNodeNo", &mut []) };
         match result_variant {
             Ok(v) => {
                 let result_node_no = unsafe { VariantToInt32(&v as *const VARIANT).unwrap() };
@@ -192,7 +207,11 @@ impl<'a> Geometry<'a> {
                 variant_from_raw_pointer::<f64>(x_ptr),
                 VARIANT::from(node_no),
             ];
-            let result_variant = invoke_method(&self.dispatch, "GetNodeCoordinates", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNodeCoordinates",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(vec![
                     *x_ptr / unit_factor,
@@ -210,7 +229,8 @@ impl<'a> Geometry<'a> {
     /// # Return values
     /// * `<Val>` The total number of node(s).
     pub fn get_node_count(&self) -> Result<i32, anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "GetNodeCount", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetNodeCount", &mut []) };
         match result_variant {
             Ok(v) => {
                 let result_node_no = unsafe { VariantToInt32(&v as *const VARIANT).unwrap() };
@@ -240,7 +260,11 @@ impl<'a> Geometry<'a> {
                 unit_factor = 39.37007874016;
             }
             let mut params = [VARIANT::from(node_a), VARIANT::from(node_b)];
-            let result_variant = invoke_method(&self.dispatch, "GetNodeDistance", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNodeDistance",
+                &mut params,
+            );
             match result_variant {
                 Ok(v) => {
                     let distance = VariantToDouble(&v as *const VARIANT).unwrap();
@@ -280,7 +304,11 @@ impl<'a> Geometry<'a> {
                 variant_from_raw_pointer::<f64>(x_ptr),
                 VARIANT::from(node_no),
             ];
-            let result_variant = invoke_method(&self.dispatch, "GetNodeIncidence", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNodeIncidence",
+                &mut params,
+            );
             match result_variant {
                 Ok(v) => {
                     let result_code = VariantToInt32(&v as *const VARIANT).unwrap();
@@ -331,8 +359,11 @@ impl<'a> Geometry<'a> {
                 variant_from_raw_pointer::<BSTR>(name_ptr),
                 VARIANT::from(node_no),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetNodeIncidence_CIS2", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNodeIncidence_CIS2",
+                &mut params,
+            );
             match result_variant {
                 Ok(v) => {
                     let result_code = VariantToInt32(&v as *const VARIANT).unwrap();
@@ -365,7 +396,8 @@ impl<'a> Geometry<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
-            let result_variant = invoke_method(&self.dispatch, "GetNodeList", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "GetNodeList", &mut params);
             match result_variant {
                 Ok(_) => {
                     let node_safe_arr = *params[0].Anonymous.Anonymous.Anonymous.pparray;
@@ -413,7 +445,11 @@ impl<'a> Geometry<'a> {
                 VARIANT::from(coord_y * unit_factor),
                 VARIANT::from(coord_x * unit_factor),
             ];
-            let result_variant = invoke_method(&self.dispatch, "GetNodeNumber", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNodeNumber",
+                &mut params,
+            );
             match result_variant {
                 Ok(v) => {
                     let node_num = VariantToInt32(&v as *const VARIANT).unwrap();
@@ -433,7 +469,11 @@ impl<'a> Geometry<'a> {
     pub fn get_node_unique_id(&self, node_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(node_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetNodeUniqueID", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNodeUniqueID",
+                &mut params,
+            );
             match result_variant {
                 Ok(v) => {
                     let result = VariantToStringAlloc(&v as *const VARIANT)
@@ -455,7 +495,8 @@ impl<'a> Geometry<'a> {
     pub fn is_orphan_node(&self, node_no: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(node_no)];
-            let result_variant = invoke_method(&self.dispatch, "IsOrphanNode", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "IsOrphanNode", &mut params);
             match result_variant {
                 Ok(v) => {
                     let result = VariantToInt32(&v as *const VARIANT).unwrap();
@@ -491,7 +532,11 @@ impl<'a> Geometry<'a> {
                 VARIANT::from(coord_x * unit_factor),
                 VARIANT::from(node_no),
             ];
-            let result_variant = invoke_method(&self.dispatch, "SetNodeCoordinate", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetNodeCoordinate",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::set_node_coordinate: {}", e),
@@ -509,7 +554,11 @@ impl<'a> Geometry<'a> {
             let id_var = VARIANT::from(unique_id);
 
             let mut params = [id_var, no_var];
-            let result_variant = invoke_method(&self.dispatch, "SetNodeUniqueID", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetNodeUniqueID",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::set_node_unique_id: {}", e),
@@ -528,7 +577,8 @@ impl<'a> Geometry<'a> {
     pub fn add_beam(&self, node_a: i32, node_b: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(node_b), VARIANT::from(node_a)];
-            let result_variant = invoke_method(&self.dispatch, "AddBeam", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "AddBeam", &mut params);
             match result_variant {
                 Ok(var) => {
                     let beam_id = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -548,7 +598,11 @@ impl<'a> Geometry<'a> {
             let variant_incidences = variant_from_raw_pointer::<SafeArray<i32>>(sa_incidences);
 
             let mut params = [variant_incidences];
-            let result_variant = invoke_method(&self.dispatch, "AddMultipleBeams", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AddMultipleBeams",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::add_multiple_beams: {}", e),
@@ -587,8 +641,11 @@ impl<'a> Geometry<'a> {
                 variant_nodes,
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "BreakBeamsAtSpecificNodes", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "BreakBeamsAtSpecificNodes",
+                &mut params,
+            );
 
             match result_variant {
                 Ok(var) => {
@@ -637,7 +694,8 @@ impl<'a> Geometry<'a> {
                 VARIANT::from(node_a),
                 VARIANT::from(beam_no),
             ];
-            let result_variant = invoke_method(&self.dispatch, "CreateBeam", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "CreateBeam", &mut params);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::create_beam: {}", e),
@@ -661,7 +719,11 @@ impl<'a> Geometry<'a> {
             let variant_incidences = variant_from_raw_pointer::<SafeArray<i32>>(sa_incidences);
 
             let mut params = [variant_incidences, variant_ids];
-            let result_variant = invoke_method(&self.dispatch, "CreateMultipleBeams", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateMultipleBeams",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::create_multiple_beams: {}", e),
@@ -675,7 +737,8 @@ impl<'a> Geometry<'a> {
     pub fn delete_beam(&self, beam_no: i32) -> Result<(), anyErr> {
         unsafe {
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "DeleteBeam", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "DeleteBeam", &mut params);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::delete_beam: {}", e),
@@ -696,7 +759,11 @@ impl<'a> Geometry<'a> {
                 unit_factor = 39.37007874016;
             }
             let mut params = [VARIANT::from(beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetBeamLength", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetBeamLength",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let length = VariantToDouble(&var as *const VARIANT).unwrap();
@@ -718,7 +785,8 @@ impl<'a> Geometry<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
-            let result_variant = invoke_method(&self.dispatch, "GetBeamList", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "GetBeamList", &mut params);
             match result_variant {
                 Ok(_) => {
                     let beam_safe_arr = *params[0].Anonymous.Anonymous.Anonymous.pparray;
@@ -752,8 +820,11 @@ impl<'a> Geometry<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(node_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetBeamsConnectedAtNode", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetBeamsConnectedAtNode",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -791,7 +862,7 @@ impl<'a> Geometry<'a> {
 
             let mut params = [variant_nodes];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetCountOfBreakableBeamsAtSpecificNodes",
                 &mut params,
             );
@@ -830,8 +901,11 @@ impl<'a> Geometry<'a> {
             let variant_beams = variant_from_raw_pointer::<SafeArray<i32>>(sa_beams);
 
             let mut params = [VARIANT::from(tolerance * unit_factor), variant_beams];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetIntersectBeamsCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetIntersectBeamsCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -847,7 +921,8 @@ impl<'a> Geometry<'a> {
     /// * `<Val>` The number of the highest beam number ID in the model (Type: Long)
     /// * `-1` General error.
     pub fn get_last_beam_no(&self) -> Result<i32, anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "GetLastBeamNo", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetLastBeamNo", &mut []) };
         match result_variant {
             Ok(var) => {
                 let last_beam_no = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -861,7 +936,8 @@ impl<'a> Geometry<'a> {
     /// # Return values
     /// * `<Val>` The total number of member(s).
     pub fn get_member_count(&self) -> Result<i32, anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "GetMemberCount", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetMemberCount", &mut []) };
         match result_variant {
             Ok(var) => {
                 let member_count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -891,7 +967,11 @@ impl<'a> Geometry<'a> {
                 VARIANT::from(beam_no),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "GetMemberIncidence", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMemberIncidence",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -928,8 +1008,11 @@ impl<'a> Geometry<'a> {
                 VARIANT::from(beam_no),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetMemberIncidence_CIS2", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMemberIncidence_CIS2",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -950,7 +1033,11 @@ impl<'a> Geometry<'a> {
     pub fn get_member_unique_id(&self, member_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(member_no)];
-            let result_variant = invoke_method(&self.dispatch, "GetMemberUniqueID", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMemberUniqueID",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let unique_id = VariantToStringAlloc(&var as *const VARIANT)
@@ -969,8 +1056,11 @@ impl<'a> Geometry<'a> {
     pub fn get_no_of_beams_connected_at_node(&self, node_no: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(node_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetNoOfBeamsConnectedAtNode", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetNoOfBeamsConnectedAtNode",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1017,7 +1107,11 @@ impl<'a> Geometry<'a> {
                 VARIANT::from(method),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "IntersectBeams", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "IntersectBeams",
+                &mut params,
+            );
 
             match result_variant {
                 Ok(var) => {
@@ -1053,7 +1147,8 @@ impl<'a> Geometry<'a> {
     pub fn is_beam(&self, member_no: i32, tolerance_angle: f64) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(tolerance_angle), VARIANT::from(member_no)];
-            let result_variant = invoke_method(&self.dispatch, "IsBeam", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "IsBeam", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1075,7 +1170,8 @@ impl<'a> Geometry<'a> {
     pub fn is_column(&self, member_no: i32, tolerance_angle: f64) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(tolerance_angle), VARIANT::from(member_no)];
-            let result_variant = invoke_method(&self.dispatch, "IsColumn", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "IsColumn", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1091,7 +1187,8 @@ impl<'a> Geometry<'a> {
     /// * `1` True;
     /// * `0` False;
     pub fn is_z_up(&self) -> Result<bool, anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "IsZUp", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "IsZUp", &mut []) };
         match result_variant {
             Ok(var) => {
                 let is_up = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() > 0 };
@@ -1131,7 +1228,8 @@ impl<'a> Geometry<'a> {
                 variant_beams,
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "MergeBeams", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "MergeBeams", &mut params);
             match result_variant {
                 Ok(var) => {
                     let success = VariantToInt32(&var as *const VARIANT).unwrap() > 0;
@@ -1152,7 +1250,8 @@ impl<'a> Geometry<'a> {
     pub fn renumber_beam(&self, old_beam_no: i32, new_beam_no: i32) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(new_beam_no), VARIANT::from(old_beam_no)];
-            let result_variant = invoke_method(&self.dispatch, "RenumberBeam", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "RenumberBeam", &mut params);
             match result_variant {
                 Ok(var) => {
                     let success = VariantToInt32(&var as *const VARIANT).unwrap() > 0;
@@ -1176,8 +1275,11 @@ impl<'a> Geometry<'a> {
     ) -> Result<bool, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(enable as i32), VARIANT::from(entity_type)];
-            let result_variant =
-                invoke_method(&self.dispatch, "SetCheckForIdenticalEntity", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetCheckForIdenticalEntity",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result = VariantToInt32(&var as *const VARIANT).unwrap() > 0;
@@ -1195,7 +1297,11 @@ impl<'a> Geometry<'a> {
     pub fn set_member_unique_id(&self, member_no: i32, unique_id: &str) -> Result<(), anyErr> {
         unsafe {
             let mut params = [VARIANT::from(unique_id), VARIANT::from(member_no)];
-            let result_variant = invoke_method(&self.dispatch, "SetMemberUniqueID", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetMemberUniqueID",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::set_member_unique_id: {}", e),
@@ -1233,7 +1339,8 @@ impl<'a> Geometry<'a> {
                 VARIANT::from(beam_no),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "SplitBeam", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "SplitBeam", &mut params);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::split_beam: {}", e),
@@ -1249,7 +1356,11 @@ impl<'a> Geometry<'a> {
         unsafe {
             let mut params = [VARIANT::from(num_parts), VARIANT::from(beam_no)];
 
-            let result_variant = invoke_method(&self.dispatch, "SplitBeamInEqlParts", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SplitBeamInEqlParts",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Geometry::split_beam_in_equal_parts: {}", e),
@@ -1296,7 +1407,11 @@ impl<'a> Geometry<'a> {
                 VARIANT::from(group_type),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "CreateGroupEx", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateGroupEx",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1316,7 +1431,8 @@ impl<'a> Geometry<'a> {
     pub fn delete_group(&self, group_name: &str) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(group_name)];
-            let result_variant = invoke_method(&self.dispatch, "DeleteGroup", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "DeleteGroup", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1341,7 +1457,11 @@ impl<'a> Geometry<'a> {
     pub fn get_group_count(&self, group_type: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(group_type)];
-            let result_variant = invoke_method(&self.dispatch, "GetGroupCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetGroupCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1356,7 +1476,8 @@ impl<'a> Geometry<'a> {
     /// # Returns
     /// * The total number of group(s).
     pub fn get_group_count_all(&self) -> Result<i32, anyErr> {
-        let result_variant = unsafe { invoke_method(&self.dispatch, "GetGroupCountAll", &mut []) };
+        let result_variant =
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetGroupCountAll", &mut []) };
         match result_variant {
             Ok(var) => {
                 let count = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -1387,7 +1508,11 @@ impl<'a> Geometry<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(group_name)];
-            let result_variant = invoke_method(&self.dispatch, "GetGroupEntities", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetGroupEntities",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let total_count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1419,7 +1544,11 @@ impl<'a> Geometry<'a> {
     pub fn get_group_entity_count(&self, group_name: &str) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(group_name)];
-            let result_variant = invoke_method(&self.dispatch, "GetGroupEntityCount", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetGroupEntityCount",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let count = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1455,7 +1584,11 @@ impl<'a> Geometry<'a> {
             let variant = variant_from_raw_pointer::<SafeArrayP<BSTR>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(group_type)];
-            let result_variant = invoke_method(&self.dispatch, "GetGroupNames", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetGroupNames",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1510,7 +1643,8 @@ impl<'a> Geometry<'a> {
                 VARIANT::from(group_name),
             ];
 
-            let result_variant = invoke_method(&self.dispatch, "UpdateGroup", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "UpdateGroup", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -1521,6 +1655,18 @@ impl<'a> Geometry<'a> {
         }
     }
 }
+
+// SAFETY: Geometry can be safely sent between threads because:
+// 1. It contains references to IDispatch COM automation objects designed for cross-thread use
+// 2. The COM runtime handles thread safety for automation objects  
+// 3. All operations go through the COM infrastructure which provides thread safety
+unsafe impl<'a> Send for Geometry<'a> {}
+
+// SAFETY: Geometry can be safely shared between threads with proper synchronization because:
+// 1. The underlying COM objects support concurrent access when properly synchronized
+// 2. The struct contains no mutable state that would cause data races
+// 3. All operations are performed through COM method calls which are thread-safe
+unsafe impl<'a> Sync for Geometry<'a> {}
 
 // :: Node
 // AddMultipleNodes

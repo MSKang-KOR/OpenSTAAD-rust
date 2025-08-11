@@ -1,9 +1,10 @@
 use crate::openstaad::tools::{
-    invoke::{get_dispatch, invoke_method},
+    com::{get_dispatch, invoke_method},
     variant::{SafeArrayP, variant_from_raw_pointer},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
+use serde::{Deserialize, Serialize};
 use std::ffi::c_void;
 use windows::Win32::System::{
     Com::{IDispatch, SAFEARRAY},
@@ -12,18 +13,20 @@ use windows::Win32::System::{
 };
 use windows_core::BSTR;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Output<'a> {
-    pub staad: &'a IDispatch,
-    pub dispatch: IDispatch,
+    #[serde(skip)]
+    pub staad: Option<&'a IDispatch>,
+    #[serde(skip)]
+    pub dispatch: Option<IDispatch>,
 }
 
 impl<'a> Output<'a> {
-    pub fn new(staad: &'a IDispatch) -> Self {
-        let _output = unsafe { get_dispatch(staad, "Output", &mut []).unwrap() };
+    pub fn new(staad: Option<&'a IDispatch>) -> Self {
+        let _output = unsafe { get_dispatch(staad.unwrap(), "Output", &mut []).unwrap() };
         Self {
             staad,
-            dispatch: _output,
+            dispatch: Some(_output),
         }
     }
     // ************************* Analysis Results *************************
@@ -31,8 +34,13 @@ impl<'a> Output<'a> {
     /// # Returns
     /// * Boolean (TRUE/FALSE) whether analysis completed or not.
     pub fn are_results_available(&self) -> Result<bool, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "AreResultsAvailable", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "AreResultsAvailable",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(_v) => {
                 let available = unsafe { VariantToInt32(&_v as *const VARIANT).unwrap() > 0 };
@@ -51,8 +59,11 @@ impl<'a> Output<'a> {
     pub fn get_member_design_section_name(&self, member_no: i32) -> Result<String, anyErr> {
         unsafe {
             let mut params = [VARIANT::from(member_no)];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetMemberDesignSectionName", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMemberDesignSectionName",
+                &mut params,
+            );
             match result_variant {
                 Ok(_v) => {
                     let section_name = VariantToStringAlloc(&_v as *const VARIANT)
@@ -75,7 +86,7 @@ impl<'a> Output<'a> {
             let ratio_ptr = &mut 0. as *mut f64;
             let mut params = [variant_from_raw_pointer::<f64>(ratio_ptr)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetMemberSteelDesignMaxFailureRatio",
                 &mut params,
             );
@@ -102,7 +113,7 @@ impl<'a> Output<'a> {
             let ratio_ptr = &mut 0. as *mut f64;
             let mut params = [variant_from_raw_pointer::<f64>(ratio_ptr)];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetMemberSteelDesignMinFailureRatio",
                 &mut params,
             );
@@ -132,8 +143,11 @@ impl<'a> Output<'a> {
                 variant_from_raw_pointer::<f64>(ratio_ptr),
                 VARIANT::from(member_no),
             ];
-            let result_variant =
-                invoke_method(&self.dispatch, "GetMemberSteelDesignRatio", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMemberSteelDesignRatio",
+                &mut params,
+            );
             match result_variant {
                 Ok(_v) => {
                     let success = VariantToInt32(&_v as *const VARIANT).unwrap() > 0;
@@ -204,8 +218,11 @@ impl<'a> Output<'a> {
                 VARIANT::from(member_no),
             ];
 
-            let result_variant =
-                invoke_method(&self.dispatch, "GetMemberSteelDesignResults", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMemberSteelDesignResults",
+                &mut params,
+            );
 
             match result_variant {
                 Ok(_v) => {
@@ -265,7 +282,7 @@ impl<'a> Output<'a> {
                 VARIANT::from(member_no),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetMultipleMemberSteelDesignMaxRatio",
                 &mut params,
             );
@@ -302,7 +319,7 @@ impl<'a> Output<'a> {
                 VARIANT::from(param_block_name),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetMultipleMemberSteelDesignRatio",
                 &mut params,
             );
@@ -353,7 +370,7 @@ impl<'a> Output<'a> {
             ];
 
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetMultipleMemberSteelDesignResults",
                 &mut params,
             );
@@ -390,8 +407,13 @@ impl<'a> Output<'a> {
     /// # Returns
     /// * Returns the count of steel design parameter blocks.
     pub fn get_steel_design_parameter_block_count(&self) -> Result<i32, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(&self.dispatch, "GetSteelDesignParameterBlockCount", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSteelDesignParameterBlockCount",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(_v) => {
                 let count = unsafe { VariantToInt32(&_v as *const VARIANT).unwrap() };
@@ -421,7 +443,7 @@ impl<'a> Output<'a> {
                 VARIANT::from(index),
             ];
             let result_variant = invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "GetSteelDesignParameterBlockNameByIndex",
                 &mut params,
             );
@@ -445,7 +467,7 @@ impl<'a> Output<'a> {
     pub fn is_multiple_member_steel_design_results_available(&self) -> Result<bool, anyErr> {
         let result_variant = unsafe {
             invoke_method(
-                &self.dispatch,
+                self.dispatch.as_ref().unwrap(),
                 "IsMultipleMemberSteelDesignResultsAvailable",
                 &mut [],
             )
@@ -462,3 +484,6 @@ impl<'a> Output<'a> {
         }
     }
 }
+
+unsafe impl<'a> Send for Output<'a> {}
+unsafe impl<'a> Sync for Output<'a> {}
