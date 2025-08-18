@@ -1,10 +1,15 @@
-use crate::openstaad::api::root::Root;
+use crate::openstaad::api::{process::StaadProcess, root::Root};
 use crate::openstaad::tauri::store::PROCESS_STORE;
 use crate::openstaad::tauri::utils::{
     ConvertedParam, MethodSignature, ParamType, StaadObject, convert_param,
 };
+use crate::openstaad::tools::notify::watch_file_background;
+use anyhow::{Ok as anyOk, bail};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::path::Path;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter};
 
 pub fn root_call(id: String, method: String, params: Vec<Value>) -> Result<Value, String> {
     let store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
@@ -14,7 +19,7 @@ pub fn root_call(id: String, method: String, params: Vec<Value>) -> Result<Value
     };
 
     // 메서드 시그니처 매핑 가져오기
-    let signatures = get_root_method_signatures();
+    let signatures = get_method_signatures();
     let signature = match signatures.get(method.as_str()) {
         Some(sig) => sig,
         None => return Err(format!("Unknown method: {}", method)),
@@ -38,22 +43,14 @@ pub fn root_call(id: String, method: String, params: Vec<Value>) -> Result<Value
 
     let converted_params = converted_params?;
 
-    // Root 객체를 안전하게 참조하기 위한 Box 처리
-    let _box = Box::new(root);
-    let _ptr = Box::into_raw(_box);
-    let _ref = unsafe { &*_ptr };
-
     // 동적 메서드 호출
-    let result = call_root_method(_ref, &method, converted_params);
-
-    // 메모리 정리
-    let _back = unsafe { Box::from_raw(_ptr) };
+    let result = call_method(&root, &method, converted_params);
 
     result
 }
 
 // Root 메서드 시그니처 매핑
-fn get_root_method_signatures() -> HashMap<&'static str, MethodSignature> {
+fn get_method_signatures() -> HashMap<&'static str, MethodSignature> {
     let mut signatures = HashMap::new();
 
     // Analysis 관련 메서드들
@@ -347,8 +344,8 @@ fn get_root_method_signatures() -> HashMap<&'static str, MethodSignature> {
     signatures
 }
 
-fn call_root_method(
-    root: &Root,
+fn call_method(
+    root: &Arc<Root>,
     method: &str,
     params: Vec<ConvertedParam>,
 ) -> Result<serde_json::Value, String> {
@@ -683,4 +680,43 @@ fn call_root_method(
 
         _ => Err(format!("Unknown method: {}", method)),
     }
+}
+
+pub fn analyze_background(pid: i64, app: AppHandle) -> Result<Value, String> {
+    app.emit("staad_analysis_start", "Analysis started")
+        .map_err(|e| e.to_string())?;
+
+    std::thread::spawn(move || {
+        let mut process = StaadProcess::new("");
+        let _ = process.start_with_pid(pid as u32);
+
+        let root = process.root();
+        let get_staad_file_result = root.get_staad_file(true);
+        match get_staad_file_result {
+            Ok(v) => {
+                println!("get_staad_file_result success: {:#?}", v);
+                let std_path = Path::new(&v);
+                let log_path = std_path.with_extension("log");
+                let _watcher_handle = watch_file_background(&log_path, app.clone());
+            }
+            Err(e) => println!("get_staad_file_result error: {:#?}", e),
+        }
+
+        match root.analyze_ex(1, 0, 1) {
+            Ok(result_code) => {
+                let _ = app
+                    .emit("staad_analysis_complete", result_code)
+                    .map_err(|e| e.to_string());
+                anyOk(())
+            }
+            Err(e) => {
+                let _ = app
+                    .emit("staad_analysis_error", e.to_string())
+                    .map_err(|e| e.to_string());
+                bail!("Error::Main::analyze: {}", e)
+            }
+        }
+    });
+
+    serde_json::to_value(0).map_err(|e| e.to_string())
 }

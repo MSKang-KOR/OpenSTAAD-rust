@@ -14,19 +14,18 @@ use windows::Win32::System::{
 use windows_core::{HSTRING, PCWSTR};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Design<'a> {
-    #[serde(skip)]
-    pub staad: Option<&'a IDispatch>,
+pub struct Design {
     #[serde(skip)]
     pub dispatch: Option<IDispatch>,
+    pub id: String,
 }
 
-impl<'a> Design<'a> {
-    pub fn new(staad: Option<&'a IDispatch>) -> Self {
-        let _design = unsafe { get_dispatch(staad.unwrap(), "Design", &mut []).unwrap() };
+impl Design {
+    pub fn new(staad: Option<IDispatch>) -> Self {
+        let _design = unsafe { get_dispatch(staad.as_ref().unwrap(), "Design", &mut []).unwrap() };
         Self {
-            staad,
             dispatch: Some(_design),
+            id: uuid::Uuid::new_v4().to_string(),
         }
     }
 
@@ -241,5 +240,6 @@ impl<'a> Design<'a> {
     }
 }
 
-unsafe impl<'a> Send for Design<'a> {}
-unsafe impl<'a> Sync for Design<'a> {}
+
+unsafe impl Send for Design{}
+unsafe impl Sync for Design{}

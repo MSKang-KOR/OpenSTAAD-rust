@@ -5,6 +5,7 @@ use crate::openstaad::tauri::utils::{
 };
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub fn geometry_call(id: String, method: String, params: Vec<Value>) -> Result<Value, String> {
     let store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
@@ -14,7 +15,7 @@ pub fn geometry_call(id: String, method: String, params: Vec<Value>) -> Result<V
     };
 
     // 메서드 시그니처 매핑 가져오기
-    let signatures = get_geometry_method_signatures();
+    let signatures = get_method_signatures();
     let signature = match signatures.get(method.as_str()) {
         Some(sig) => sig,
         None => return Err(format!("Unknown method: {}", method)),
@@ -38,22 +39,14 @@ pub fn geometry_call(id: String, method: String, params: Vec<Value>) -> Result<V
 
     let converted_params = converted_params?;
 
-    // Geometry 객체를 안전하게 참조하기 위한 Box 처리
-    let _box = Box::new(geometry);
-    let _ptr = Box::into_raw(_box);
-    let _ref = unsafe { &*_ptr };
-
     // 동적 메서드 호출
-    let result = call_geometry_method(_ref, &method, converted_params);
-
-    // 메모리 정리
-    let _back = unsafe { Box::from_raw(_ptr) };
+    let result = call_method(&geometry, &method, converted_params);
 
     result
 }
 
 // Geometry 메서드 시그니처 매핑
-fn get_geometry_method_signatures() -> HashMap<&'static str, MethodSignature> {
+fn get_method_signatures() -> HashMap<&'static str, MethodSignature> {
     let mut signatures = HashMap::new();
 
     // Node 관련 메서드들
@@ -411,8 +404,8 @@ fn get_geometry_method_signatures() -> HashMap<&'static str, MethodSignature> {
     signatures
 }
 
-fn call_geometry_method(
-    geometry: &Geometry,
+fn call_method(
+    geometry: &Arc<Geometry>,
     method: &str,
     params: Vec<ConvertedParam>,
 ) -> Result<serde_json::Value, String> {

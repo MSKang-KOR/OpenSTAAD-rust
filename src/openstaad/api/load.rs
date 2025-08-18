@@ -15,19 +15,18 @@ use windows::Win32::System::{
 use windows_core::BSTR;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Load<'a> {
-    #[serde(skip)]
-    pub staad: Option<&'a IDispatch>,
+pub struct Load {
     #[serde(skip)]
     pub dispatch: Option<IDispatch>,
+    pub id: String,
 }
 
-impl<'a> Load<'a> {
-    pub fn new(staad: Option<&'a IDispatch>) -> Self {
-        let _load = unsafe { get_dispatch(staad.unwrap(), "Load", &mut []).unwrap() };
+impl Load {
+    pub fn new(staad: Option<IDispatch>) -> Self {
+        let _load = unsafe { get_dispatch(staad.as_ref().unwrap(), "Load", &mut []).unwrap() };
         Self {
-            staad,
             dispatch: Some(_load),
+            id: uuid::Uuid::new_v4().to_string(),
         }
     }
     /// Adds a Wind Definition named "varTypeName" with number ID varTypeNo.
@@ -5060,8 +5059,8 @@ impl<'a> Load<'a> {
     }
 }
 
-unsafe impl<'a> Send for Load<'a> {}
-unsafe impl<'a> Sync for Load<'a> {}
+unsafe impl Send for Load{}
+unsafe impl Sync for Load{}
 
 // ********** Definitions **********
 // :: Wind

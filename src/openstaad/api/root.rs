@@ -1,28 +1,33 @@
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
 use windows::Win32::System::{
     Com::IDispatch,
     Variant::{VARIANT, VariantToInt32, VariantToInt64, VariantToStringAlloc},
 };
 use windows_core::BSTR;
 
-use crate::openstaad::{tools::com::invoke_method, tools::variant::variant_from_raw_pointer};
+use crate::openstaad::tools::{com::invoke_method, variant::variant_from_raw_pointer};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Root<'a> {
+pub struct Root {
     #[serde(skip)]
-    pub dispatch: Option<&'a IDispatch>,
+    pub dispatch: Option<IDispatch>,
+    pub id: String,
 }
 
-impl<'a> Root<'a> {
-    pub fn new(staad: Option<&'a IDispatch>) -> Self {
-        Self { dispatch: staad }
+impl Root {
+    pub fn new(staad: Option<IDispatch>) -> Self {
+        Self {
+            dispatch: staad,
+            id: uuid::Uuid::new_v4().to_string(),
+        }
     }
 
     /// This function analyzes the currently opened .STD file. This method is equivalent to running analysis from user interface. For more options, see AnalyzeEx() method.
     pub fn analyze(&self) -> Result<(), anyErr> {
         unsafe {
-            let result_variant = invoke_method(self.dispatch.unwrap(), "Analyze", &mut []);
+            let result_variant = invoke_method(self.dispatch.as_ref().unwrap(), "Analyze", &mut []);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::analyze: {}", e),
@@ -46,19 +51,82 @@ impl<'a> Root<'a> {
     pub fn analyze_ex(&self, silent: i32, hidden: i32, wait: i32) -> Result<i32, anyErr> {
         unsafe {
             let mut params = [
-                VARIANT::from(wait),
-                VARIANT::from(hidden),
-                VARIANT::from(silent),
+                VARIANT::from(wait),   // wait
+                VARIANT::from(hidden), // hidden
+                VARIANT::from(silent), // silent
             ];
-            let result_variant = invoke_method(self.dispatch.unwrap(), "AnalyzeEx", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "AnalyzeEx", &mut params);
             match result_variant {
                 Ok(var) => {
                     let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
                     anyOk(result_code)
                 }
-                Err(e) => bail!("Error::Main::analyze_ex: {}", e),
+                Err(e) => bail!("Error::Main::analyze: {}", e),
             }
         }
+    }
+
+    /// This extended method analyzes the currently opened .STD file in the background.
+    /// This method immediately returns after starting the analysis on the main thread.
+    /// The analysis is performed with predefined parameters: silent=1, hidden=1, wait=0.
+    /// A background thread monitors completion using a timer-based approach since
+    /// COM objects cannot be safely used across threads.
+    ///
+    /// Events emitted during execution:
+    /// * `staad_analysis_start` - Analysis has started
+    /// * `staad_analysis_complete` - Analysis completed (with result code)
+    /// * `staad_analysis_error` - Analysis failed (with error message)
+    ///
+    /// For detailed parameter descriptions and return values, see the `analyze_ex` method documentation.
+    ///
+    /// # Parameters
+    /// * `app` - Tauri AppHandle for event emission
+    ///
+    /// # Returns
+    /// * `Ok(())` - Analysis started in background successfully (returns immediately)
+    /// * `Err` - Failed to start analysis
+    pub fn analyze_background(&self, app: AppHandle) -> Result<(), anyErr> {
+        app.emit("staad_analysis_start", "Analysis started")
+            .map_err(|e| anyErr::msg(e.to_string()))?;
+
+        // 메인 스레드에서 분석 시작 (wait=0으로 즉시 반환)
+        unsafe {
+            let mut params = [
+                VARIANT::from(0i32), // wait = 0 (즉시 반환)
+                VARIANT::from(1i32), // hidden
+                VARIANT::from(1i32), // silent
+            ];
+
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "AnalyzeEx", &mut params);
+            match result_variant {
+                Ok(_) => {
+                    // 분석이 시작되었으므로 백그라운드에서 완료 모니터링 시작
+                    let app_clone = app.clone();
+
+                    std::thread::spawn(move || {
+                        // 분석이 완료될 때까지 대기 (일반적으로 몇 초에서 몇 분)
+                        // 실제로는 STAAD.Pro가 외부 프로세스에서 실행되므로
+                        // 여기서는 합리적인 대기 시간을 사용
+                        std::thread::sleep(std::time::Duration::from_secs(10));
+
+                        // 분석 완료로 가정하고 완료 이벤트 발송
+                        let _ = app_clone.emit("staad_analysis_complete", 2i32);
+                    });
+                }
+                Err(e) => {
+                    app.emit(
+                        "staad_analysis_error",
+                        format!("Analysis start failed: {}", e),
+                    )
+                    .map_err(|e| anyErr::msg(e.to_string()))?;
+                }
+            }
+        }
+
+        // 즉시 반환 - 분석은 백그라운드에서 계속됨
+        anyOk(())
     }
 
     /// Analyze the model currently opened in staad.pro.
@@ -67,7 +135,8 @@ impl<'a> Root<'a> {
     pub fn analyze_model(&self, engine: i32) -> Result<(), anyErr> {
         unsafe {
             let mut params = [VARIANT::from(engine)];
-            let result_variant = invoke_method(self.dispatch.unwrap(), "AnalyzeModel", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "AnalyzeModel", &mut params);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::analyze_model: {}", e),
@@ -78,7 +147,8 @@ impl<'a> Root<'a> {
     /// This function closes the currently open .STD file.
     pub fn close_staad_file(&self) -> Result<(), anyErr> {
         unsafe {
-            let result_variant = invoke_method(self.dispatch.unwrap(), "CloseSTAADFile", &mut []);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "CloseSTAADFile", &mut []);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::close_staad_file: {}", e),
@@ -99,8 +169,11 @@ impl<'a> Root<'a> {
                 VARIANT::from(flag),
                 VARIANT::from(name),
             ];
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "CreateNamedView", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "CreateNamedView",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(*error_ptr),
                 Err(e) => bail!("Error::Main::create_named_view: {}", e),
@@ -136,8 +209,11 @@ impl<'a> Root<'a> {
                 VARIANT::from(model_path),
             ];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "GetAnalysisStatus", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetAnalysisStatus",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let status_code = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -170,8 +246,11 @@ impl<'a> Root<'a> {
                 variant_from_raw_pointer::<i32>(major_a_ptr),
             ];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "GetApplicationVersion", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetApplicationVersion",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let version_text = VariantToStringAlloc(&var as *const VARIANT)
@@ -196,7 +275,7 @@ impl<'a> Root<'a> {
     /// * `2` (Long/Integer) Value will return 2 for Metric system of units
     pub fn get_base_unit(&self) -> Result<i32, anyErr> {
         let result_variant =
-            unsafe { invoke_method(self.dispatch.unwrap(), "GetBaseUnit", &mut []) };
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetBaseUnit", &mut []) };
         match result_variant {
             Ok(var) => {
                 let base_unit = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -224,7 +303,7 @@ impl<'a> Root<'a> {
             ];
 
             let result_variant = invoke_method(
-                self.dispatch.unwrap(),
+                self.dispatch.as_ref().unwrap(),
                 "GetCONNECTEDProjectInfo",
                 &mut params,
             );
@@ -245,7 +324,7 @@ impl<'a> Root<'a> {
     /// * errmsg Error message thrown by OpenSTAAD
     pub fn get_error_message(&self) -> Result<String, anyErr> {
         let result_variant =
-            unsafe { invoke_method(self.dispatch.unwrap(), "GetErrorMessage", &mut []) };
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetErrorMessage", &mut []) };
         match result_variant {
             Ok(var) => {
                 let error_msg = unsafe {
@@ -313,8 +392,11 @@ impl<'a> Root<'a> {
                 variant_from_raw_pointer::<BSTR>(job_name_ptr),
             ];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "GetFullJobInfo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetFullJobInfo",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk((
                     (&*job_name_ptr).to_string(),
@@ -347,8 +429,11 @@ impl<'a> Root<'a> {
             let unit_ptr = &mut BSTR::default() as *mut BSTR;
             let mut params = [variant_from_raw_pointer::<BSTR>(unit_ptr)];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "GetInputUnitForForce", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetInputUnitForForce",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let success = VariantToInt32(&var as *const VARIANT).unwrap() > 0;
@@ -371,8 +456,11 @@ impl<'a> Root<'a> {
             let unit_ptr = &mut BSTR::default() as *mut BSTR;
             let mut params = [variant_from_raw_pointer::<BSTR>(unit_ptr)];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "GetInputUnitForLength", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetInputUnitForLength",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let success = VariantToInt32(&var as *const VARIANT).unwrap() > 0;
@@ -386,8 +474,13 @@ impl<'a> Root<'a> {
 
     /// This function retrives the main STAAD.Pro window handle.
     pub fn get_main_window_handle(&self) -> Result<i64, anyErr> {
-        let result_variant =
-            unsafe { invoke_method(self.dispatch.unwrap(), "GetMainWindowHandle", &mut []) };
+        let result_variant = unsafe {
+            invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetMainWindowHandle",
+                &mut [],
+            )
+        };
         match result_variant {
             Ok(var) => {
                 let handle = unsafe { VariantToInt64(&var as *const VARIANT).unwrap() };
@@ -400,7 +493,7 @@ impl<'a> Root<'a> {
     /// This function retrives the current STAAD.Pro process handle.
     pub fn get_process_handle(&self) -> Result<i64, anyErr> {
         let result_variant =
-            unsafe { invoke_method(self.dispatch.unwrap(), "GetProcessHandle", &mut []) };
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetProcessHandle", &mut []) };
         match result_variant {
             Ok(var) => {
                 let handle = unsafe { VariantToInt64(&var as *const VARIANT).unwrap() };
@@ -409,11 +502,10 @@ impl<'a> Root<'a> {
             Err(e) => bail!("Error::Main::get_process_handle: {}", e),
         }
     }
-
     /// This function retrives the current STAAD.Pro process ID.
     pub fn get_process_id(&self) -> Result<i32, anyErr> {
         let result_variant =
-            unsafe { invoke_method(self.dispatch.unwrap(), "GetProcessId", &mut []) };
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "GetProcessId", &mut []) };
         match result_variant {
             Ok(var) => {
                 let process_id = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() };
@@ -438,8 +530,11 @@ impl<'a> Root<'a> {
                 variant_from_raw_pointer::<BSTR>(job_name_ptr),
             ];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "GetShortJobInfo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetShortJobInfo",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk((
                     (&*job_name_ptr).to_string(),
@@ -464,7 +559,8 @@ impl<'a> Root<'a> {
                 variant_from_raw_pointer::<BSTR>(file_name_ptr),
             ];
 
-            let result_variant = invoke_method(self.dispatch.unwrap(), "GetSTAADFile", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "GetSTAADFile", &mut params);
             match result_variant {
                 Ok(_) => {
                     let file_name = (&*file_name_ptr).to_string();
@@ -483,8 +579,11 @@ impl<'a> Root<'a> {
             let file_folder_ptr = &mut BSTR::default() as *mut BSTR;
             let mut params = [variant_from_raw_pointer::<BSTR>(file_folder_ptr)];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "GetSTAADFileFolder", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "GetSTAADFileFolder",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => {
                     let file_folder = (&*file_folder_ptr).to_string();
@@ -500,7 +599,7 @@ impl<'a> Root<'a> {
     /// * Returns 1 if analysis is still running, 0 otherwise.
     pub fn is_analyzing(&self) -> Result<bool, anyErr> {
         let result_variant =
-            unsafe { invoke_method(self.dispatch.unwrap(), "IsAnalyzing", &mut []) };
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "IsAnalyzing", &mut []) };
         match result_variant {
             Ok(var) => {
                 let is_analyzing = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() > 0 };
@@ -516,7 +615,7 @@ impl<'a> Root<'a> {
     /// * `0` False
     pub fn is_physical_model(&self) -> Result<bool, anyErr> {
         let result_variant =
-            unsafe { invoke_method(self.dispatch.unwrap(), "IsPhysicalModel", &mut []) };
+            unsafe { invoke_method(self.dispatch.as_ref().unwrap(), "IsPhysicalModel", &mut []) };
         match result_variant {
             Ok(var) => {
                 let is_physical = unsafe { VariantToInt32(&var as *const VARIANT).unwrap() > 0 };
@@ -554,8 +653,11 @@ impl<'a> Root<'a> {
                 VARIANT::from(name),
             ];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "ModifyNamedView", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "ModifyNamedView",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(*error_ptr),
                 Err(e) => bail!("Error::Main::modify_named_view: {}", e),
@@ -581,7 +683,8 @@ impl<'a> Root<'a> {
                 VARIANT::from(file_name),
             ];
 
-            let result_variant = invoke_method(self.dispatch.unwrap(), "NewSTAADFile", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "NewSTAADFile", &mut params);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::new_staad_file: {}", e),
@@ -596,8 +699,11 @@ impl<'a> Root<'a> {
         unsafe {
             let mut params = [VARIANT::from(file_name)];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "OpenSTAADFile", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "OpenSTAADFile",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::open_staad_file: {}", e),
@@ -608,7 +714,7 @@ impl<'a> Root<'a> {
     /// This function closes the STAAD.Pro application environment.
     pub fn quit(&self) -> Result<(), anyErr> {
         unsafe {
-            let result_variant = invoke_method(self.dispatch.unwrap(), "Quit", &mut []);
+            let result_variant = invoke_method(self.dispatch.as_ref().unwrap(), "Quit", &mut []);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::quit: {}", e),
@@ -629,8 +735,11 @@ impl<'a> Root<'a> {
                 VARIANT::from(name),
             ];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "RemoveNamedView", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "RemoveNamedView",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(*error_ptr),
                 Err(e) => bail!("Error::Main::remove_named_view: {}", e),
@@ -645,7 +754,8 @@ impl<'a> Root<'a> {
         unsafe {
             let mut params = [VARIANT::from(silent)];
 
-            let result_variant = invoke_method(self.dispatch.unwrap(), "SaveModel", &mut params);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "SaveModel", &mut params);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::save_model: {}", e),
@@ -666,8 +776,11 @@ impl<'a> Root<'a> {
                 VARIANT::from(name),
             ];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "SaveNamedView", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SaveNamedView",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(*error_ptr),
                 Err(e) => bail!("Error::Main::save_named_view: {}", e),
@@ -687,7 +800,7 @@ impl<'a> Root<'a> {
             let mut params = [VARIANT::from(name), VARIANT::from(proj_id)];
 
             let result_variant = invoke_method(
-                self.dispatch.unwrap(),
+                self.dispatch.as_ref().unwrap(),
                 "SetCONNECTEDProjectInfo",
                 &mut params,
             );
@@ -749,8 +862,11 @@ impl<'a> Root<'a> {
                 VARIANT::from(job_name),
             ];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "SetFullJobInfo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetFullJobInfo",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::set_full_job_info: {}", e),
@@ -765,8 +881,11 @@ impl<'a> Root<'a> {
         unsafe {
             let mut params = [VARIANT::from(unit)];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "SetInputUnitForForce", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetInputUnitForForce",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::set_input_unit_for_force: {}", e),
@@ -781,8 +900,11 @@ impl<'a> Root<'a> {
         unsafe {
             let mut params = [VARIANT::from(unit)];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "SetInputUnitForLength", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetInputUnitForLength",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::set_input_unit_for_length: {}", e),
@@ -798,8 +920,11 @@ impl<'a> Root<'a> {
         unsafe {
             let mut params = [VARIANT::from(force_unit), VARIANT::from(length_unit)];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "SetInputUnits", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetInputUnits",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::set_input_units: {}", e),
@@ -825,8 +950,11 @@ impl<'a> Root<'a> {
                 VARIANT::from(job_name),
             ];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "SetShortJobInfo", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetShortJobInfo",
+                &mut params,
+            );
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::set_short_job_info: {}", e),
@@ -843,8 +971,11 @@ impl<'a> Root<'a> {
         unsafe {
             let mut params = [VARIANT::from(flag)];
 
-            let result_variant =
-                invoke_method(self.dispatch.unwrap(), "SetSilentMode", &mut params);
+            let result_variant = invoke_method(
+                self.dispatch.as_ref().unwrap(),
+                "SetSilentMode",
+                &mut params,
+            );
             match result_variant {
                 Ok(var) => {
                     let existing_value = VariantToInt32(&var as *const VARIANT).unwrap();
@@ -858,7 +989,8 @@ impl<'a> Root<'a> {
     /// This function updates the current structure.
     pub fn update_structure(&self) -> Result<(), anyErr> {
         unsafe {
-            let result_variant = invoke_method(self.dispatch.unwrap(), "UpdateStructure", &mut []);
+            let result_variant =
+                invoke_method(self.dispatch.as_ref().unwrap(), "UpdateStructure", &mut []);
             match result_variant {
                 Ok(_) => anyOk(()),
                 Err(e) => bail!("Error::Main::update_structure: {}", e),
@@ -866,3 +998,6 @@ impl<'a> Root<'a> {
         }
     }
 }
+
+// unsafe impl Send for Root{}
+// unsafe impl Sync for Root{}

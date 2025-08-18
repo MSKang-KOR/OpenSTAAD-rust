@@ -17,19 +17,18 @@ use windows::Win32::System::{
 use windows_core::BSTR;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Property<'a> {
-    #[serde(skip)]
-    pub staad: Option<&'a IDispatch>,
+pub struct Property {
     #[serde(skip)]
     pub dispatch: Option<IDispatch>,
+    pub id: String,
 }
 
-impl<'a> Property<'a> {
-    pub fn new(staad: Option<&'a IDispatch>) -> Self {
-        let _property = unsafe { get_dispatch(staad.unwrap(), "Property", &mut []).unwrap() };
+impl Property {
+    pub fn new(staad: Option<IDispatch>) -> Self {
+        let _property = unsafe { get_dispatch(staad.as_ref().unwrap(), "Property", &mut []).unwrap() };
         Self {
-            staad,
             dispatch: Some(_property),
+            id: uuid::Uuid::new_v4().to_string(),
         }
     }
     /// Creates angle property from database.
@@ -5090,8 +5089,8 @@ impl<'a> Property<'a> {
     }
 }
 
-unsafe impl<'a> Send for Property<'a> {}
-unsafe impl<'a> Sync for Property<'a> {}
+unsafe impl Send for Property{}
+unsafe impl Sync for Property{}
 
 // ********** Section **********
 // :: Create Profile

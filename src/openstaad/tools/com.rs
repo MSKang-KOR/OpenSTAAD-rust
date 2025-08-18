@@ -1,6 +1,6 @@
 use std::ptr::null_mut;
 
-use anyhow::{Context, Error as anyErr, Result as ResultAny, bail};
+use anyhow::{Error as anyErr, Result as ResultAny, bail};
 use windows::{
     Win32::System::{
         Com::{DISPATCH_METHOD, DISPATCH_PROPERTYGET, DISPPARAMS, EXCEPINFO, IDispatch},
@@ -19,9 +19,14 @@ pub unsafe fn invoke_method(
     let iid = &GUID::default() as *const GUID;
 
     unsafe {
-        let _ = object
-            .GetIDsOfNames(iid, name, 1, 0, &mut dispid)
-            .context("Method ID 가져오기 실패");
+        let result = object.GetIDsOfNames(iid, name, 1, 0, &mut dispid);
+        if let Err(e) = result {
+            bail!(
+                "Fail to get ids of names with '{}' method: {}",
+                &method_name,
+                e
+            );
+        }
     };
 
     let mut result = VARIANT::default();
@@ -33,27 +38,21 @@ pub unsafe fn invoke_method(
         cNamedArgs: 0,
         rgdispidNamedArgs: null_mut(),
     };
-
     unsafe {
-        let invoked = object
-            .Invoke(
-                dispid,
-                iid,
-                0,
-                DISPATCH_METHOD | DISPATCH_PROPERTYGET,
-                &dispparams,
-                Some(&mut result),
-                Some(&mut excepinfo),
-                None,
-            )
-            .context("Method 실행 실패");
-
+        let invoked = object.Invoke(
+            dispid,
+            iid,
+            0,
+            DISPATCH_METHOD | DISPATCH_PROPERTYGET,
+            &dispparams,
+            Some(&mut result),
+            Some(&mut excepinfo),
+            None,
+        );
         match invoked {
-            Ok(()) => {
-                return Ok(result);
-            }
+            Ok(()) => return Ok(result),
             Err(e) => {
-                // println!("NG: {:#?}", method_name);
+                println!("invoke_method: {} failed with error: {:?}", method_name, e);
                 bail!("{:#?}: {:#?}", e, method_name);
             }
         }
@@ -65,8 +64,7 @@ pub unsafe fn get_dispatch(
     method_name: &str,
     params: &mut [VARIANT],
 ) -> ResultAny<IDispatch, anyErr> {
-    let result: ResultAny<VARIANT, anyErr> =
-        unsafe { invoke_method(object, method_name, params) };
+    let result: ResultAny<VARIANT, anyErr> = unsafe { invoke_method(object, method_name, params) };
     match result {
         Ok(v) => {
             match IDispatch::try_from(&v) {

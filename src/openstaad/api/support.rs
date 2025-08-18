@@ -14,19 +14,18 @@ use windows::Win32::System::{
 };
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Support<'a> {
-    #[serde(skip)]
-    pub staad: Option<&'a IDispatch>,
+pub struct Support {
     #[serde(skip)]
     pub dispatch: Option<IDispatch>,
+    pub id: String,
 }
 
-impl<'a> Support<'a> {
-    pub fn new(staad: Option<&'a IDispatch>) -> Self {
-        let _support = unsafe { get_dispatch(staad.unwrap(), "Support", &mut []).unwrap() };
+impl Support {
+    pub fn new(staad: Option<IDispatch>) -> Self {
+        let _support = unsafe { get_dispatch(staad.as_ref().unwrap(), "Support", &mut []).unwrap() };
         Self {
-            staad,
             dispatch: Some(_support),
+            id: uuid::Uuid::new_v4().to_string(),
         }
     }
 
@@ -590,8 +589,8 @@ impl<'a> Support<'a> {
     }
 }
 
-unsafe impl<'a> Send for Support<'a> {}
-unsafe impl<'a> Sync for Support<'a> {}
+unsafe impl Send for Support{}
+unsafe impl Sync for Support{}
 
 // AssignSupportToNode
 // CreateInclinedSupport

@@ -15,19 +15,18 @@ use windows::Win32::System::{
 use windows_core::BSTR;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Geometry<'a> {
-    #[serde(skip)]
-    pub staad: Option<&'a IDispatch>,
+pub struct Geometry {
     #[serde(skip)]
     pub dispatch: Option<IDispatch>,
+    pub id: String,
 }
 
-impl<'a> Geometry<'a> {
-    pub fn new(staad: Option<&'a IDispatch>) -> Self {
-        let _geometry = unsafe { get_dispatch(staad.unwrap(), "Geometry", &mut []).unwrap() };
+impl Geometry {
+    pub fn new(staad: Option<IDispatch>) -> Self {
+        let _geometry = unsafe { get_dispatch(staad.as_ref().unwrap(), "Geometry", &mut []).unwrap() };
         Self {
-            staad,
             dispatch: Some(_geometry),
+            id: uuid::Uuid::new_v4().to_string(),
         }
     }
     pub fn add_multiple_nodes(
@@ -1660,13 +1659,13 @@ impl<'a> Geometry<'a> {
 // 1. It contains references to IDispatch COM automation objects designed for cross-thread use
 // 2. The COM runtime handles thread safety for automation objects  
 // 3. All operations go through the COM infrastructure which provides thread safety
-unsafe impl<'a> Send for Geometry<'a> {}
+unsafe impl Send for Geometry{}
 
 // SAFETY: Geometry can be safely shared between threads with proper synchronization because:
 // 1. The underlying COM objects support concurrent access when properly synchronized
 // 2. The struct contains no mutable state that would cause data races
 // 3. All operations are performed through COM method calls which are thread-safe
-unsafe impl<'a> Sync for Geometry<'a> {}
+unsafe impl Sync for Geometry{}
 
 // :: Node
 // AddMultipleNodes

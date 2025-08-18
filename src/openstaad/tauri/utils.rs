@@ -1,9 +1,9 @@
 use crate::openstaad::api::{
     command::Command, design::Design, geometry::Geometry, load::Load, output::Output,
-    property::Property, root::Root, support::Support,
+    process::StaadProcess, property::Property, root::Root, support::Support,
 };
-use crate::openstaad::process::StaadProcess;
 use serde_json::Value;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct MethodSignature {
@@ -12,20 +12,20 @@ pub struct MethodSignature {
 }
 
 #[derive(Debug)]
-pub enum StaadObject<'a> {
-    Process(StaadProcess),
-    Root(Root<'a>),
-    Geometry(Geometry<'a>),
-    Command(Command<'a>),
-    Design(Design<'a>),
-    Load(Load<'a>),
-    Output(Output<'a>),
-    Property(Property<'a>),
-    Support(Support<'a>),
+pub enum StaadObject {
+    Process(Arc<Mutex<StaadProcess>>),
+    Root(Arc<Root>),
+    Geometry(Arc<Geometry>),
+    Command(Arc<Command>),
+    Design(Arc<Design>),
+    Load(Arc<Load>),
+    Output(Arc<Output>),
+    Property(Arc<Property>),
+    Support(Arc<Support>),
 }
 
-unsafe impl<'a> Send for StaadObject<'a> {}
-unsafe impl<'a> Sync for StaadObject<'a> {}
+unsafe impl Send for StaadObject {}
+unsafe impl Sync for StaadObject {}
 
 #[derive(Debug)]
 pub enum ParamType {
@@ -37,6 +37,11 @@ pub enum ParamType {
     VecF64,
     VecVecI32,
     VecVecF64,
+    VecString,
+    OptionVecString,
+    OptionVecF64,
+    ArrayF64_6, // [f64; 6]
+    ArrayF64_3, // [f64; 3]
     BaseUnit, // 특별히 처리가 필요한 base_unit 파라미터
 }
 
@@ -50,6 +55,11 @@ pub enum ConvertedParam {
     VecF64(Vec<f64>),
     VecVecI32(Vec<Vec<i32>>),
     VecVecF64(Vec<Vec<f64>>),
+    VecString(Vec<String>),
+    OptionVecString(Option<Vec<String>>),
+    OptionVecF64(Option<Vec<f64>>),
+    ArrayF64_6([f64; 6]),
+    ArrayF64_3([f64; 3]),
 }
 
 // 파라미터 변환 함수
@@ -128,6 +138,75 @@ pub fn convert_param(value: &Value, param_type: &ParamType) -> Result<ConvertedP
                 result.push(inner_result);
             }
             Ok(ConvertedParam::VecVecF64(result))
+        }
+        ParamType::VecString => {
+            let array = value
+                .as_array()
+                .ok_or("Invalid array parameter".to_string())?;
+            let mut result = Vec::new();
+            for v in array.iter() {
+                let string_val = v.as_str().ok_or("Invalid string in array".to_string())?;
+                result.push(string_val.to_string());
+            }
+            Ok(ConvertedParam::VecString(result))
+        }
+        ParamType::OptionVecString => {
+            if value.is_null() {
+                Ok(ConvertedParam::OptionVecString(None))
+            } else {
+                let array = value
+                    .as_array()
+                    .ok_or("Invalid array parameter".to_string())?;
+                let mut result = Vec::new();
+                for v in array.iter() {
+                    let string_val = v.as_str().ok_or("Invalid string in array".to_string())?;
+                    result.push(string_val.to_string());
+                }
+                Ok(ConvertedParam::OptionVecString(Some(result)))
+            }
+        }
+        ParamType::OptionVecF64 => {
+            if value.is_null() {
+                Ok(ConvertedParam::OptionVecF64(None))
+            } else {
+                let array = value
+                    .as_array()
+                    .ok_or("Invalid array parameter".to_string())?;
+                let mut result = Vec::new();
+                for v in array.iter() {
+                    let f64_val = v.as_f64().ok_or("Invalid f64 in array".to_string())?;
+                    result.push(f64_val);
+                }
+                Ok(ConvertedParam::OptionVecF64(Some(result)))
+            }
+        }
+        ParamType::ArrayF64_6 => {
+            let array = value
+                .as_array()
+                .ok_or("Invalid array parameter".to_string())?;
+            if array.len() != 6 {
+                return Err("Array must have exactly 6 elements".to_string());
+            }
+            let mut result = [0.0f64; 6];
+            for (i, v) in array.iter().enumerate() {
+                let f64_val = v.as_f64().ok_or("Invalid f64 in array".to_string())?;
+                result[i] = f64_val;
+            }
+            Ok(ConvertedParam::ArrayF64_6(result))
+        }
+        ParamType::ArrayF64_3 => {
+            let array = value
+                .as_array()
+                .ok_or("Invalid array parameter".to_string())?;
+            if array.len() != 3 {
+                return Err("Array must have exactly 3 elements".to_string());
+            }
+            let mut result = [0.0f64; 3];
+            for (i, v) in array.iter().enumerate() {
+                let f64_val = v.as_f64().ok_or("Invalid f64 in array".to_string())?;
+                result[i] = f64_val;
+            }
+            Ok(ConvertedParam::ArrayF64_3(result))
         }
     }
 }

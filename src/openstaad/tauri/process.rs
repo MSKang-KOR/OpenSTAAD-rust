@@ -1,110 +1,195 @@
-use serde_json::Value;
-use tokio::runtime::Runtime;
-
 use crate::openstaad::{
-    api::{
-        command::Command, design::Design, geometry::Geometry, load::Load, output::Output,
-        property::Property, root::Root, support::Support,
-    },
-    process::StaadProcess,
+    api::process::StaadProcess,
     tauri::{store::PROCESS_STORE, utils::StaadObject},
 };
+use serde_json::Value;
+use std::sync::{Arc, Mutex};
 
-pub fn staad_process_start(path: String) -> Result<Value, String> {
-    let mut process = StaadProcess::new(&path);
-    let _id = uuid::Uuid::new_v4().to_string();
-    let rt = Runtime::new().map_err(|e| e.to_string())?;
-    rt.block_on(process.start()).map_err(|e| e.to_string())?;
-
-    let _staad = &process.staad;
-    match _staad {
-        Some(_v) => {
-            let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
-            store.insert(_id.clone(), StaadObject::Process(process));
-            // Ok(_id)
-            serde_json::to_value(&_id).map_err(|e| e.to_string())
+pub fn process_call(id: String, method: String, params: Vec<Value>) -> Result<Value, String> {
+    match method.as_str() {
+        "start" => {
+            let path = &params[0].to_string();
+            let mut process = StaadProcess::new(path);
+            if let Ok(_) = process.start() {
+                let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
+                let _pid = process.pid.unwrap();
+                let store_id = _pid.to_string();
+                if store.contains_key(&store_id) {
+                    if !process.is_alive() {
+                        store.remove(&store_id);
+                        store.insert(
+                            store_id.clone(),
+                            StaadObject::Process(Arc::new(Mutex::new(process))),
+                        );
+                    } else {
+                        drop(process);
+                    }
+                    return serde_json::to_value(&store_id).map_err(|e| e.to_string());
+                }
+                store.insert(
+                    store_id.clone(),
+                    StaadObject::Process(Arc::new(Mutex::new(process))),
+                );
+                return serde_json::to_value(&store_id).map_err(|e| e.to_string());
+            }
+            return Err(format!("Fail to '{}' method", method));
         }
-        _ => Err("Fail to start STAAD process".to_string()),
-    }
-}
-
-pub fn staad_process_call(id: String, method: String) -> Result<Value, String> {
-    let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
-    let process = match store.remove(&id) {
-        Some(StaadObject::Process(p)) => p,
-        _ => return Err("Process not found".to_string()),
-    };
-
-    let new_id = uuid::Uuid::new_v4().to_string();
-
-    // process를 Box로 래핑하여 힙에 할당
-    let process_box = Box::new(process);
-    let process_ptr: *mut StaadProcess = Box::into_raw(process_box);
-    let process_ref = unsafe { &*process_ptr };
-
-    let result = match method.as_str() {
+        "start_with_pid" => {
+            let path = params[0].to_string();
+            let pid = params[1].as_i64().unwrap() as u32;
+            let mut process = StaadProcess::new(&path);
+            if let Ok(_) = process.start_with_pid(pid) {
+                let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
+                let _pid = process.pid.unwrap();
+                let store_id = _pid.to_string();
+                if store.contains_key(&store_id) {
+                    if !process.is_alive() {
+                        store.remove(&store_id);
+                        store.insert(
+                            store_id.clone(),
+                            StaadObject::Process(Arc::new(Mutex::new(process))),
+                        );
+                    } else {
+                        drop(process);
+                    }
+                    return serde_json::to_value(&store_id).map_err(|e| e.to_string());
+                }
+                store.insert(
+                    store_id.clone(),
+                    StaadObject::Process(Arc::new(Mutex::new(process))),
+                );
+                return serde_json::to_value(&store_id).map_err(|e| e.to_string());
+            }
+            return Err(format!("Fail to '{}' method", method));
+        }
         "root" => {
-            let root = process_ref.root();
-            let static_root: Root<'static> = unsafe { std::mem::transmute(root) };
-            store.insert(new_id.clone(), StaadObject::Root(static_root));
-            Ok(())
+            let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
+            let process_arc = match store.get(&id) {
+                Some(StaadObject::Process(p)) => Arc::clone(p),
+                _ => return Err("Process not found".to_string()),
+            };
+            let root = {
+                let mut process = process_arc.lock().map_err(|e| e.to_string())?;
+                process.root()
+            };
+            let root_id = root.id.clone();
+            if !store.contains_key(&root_id) {
+                store.insert(root_id.clone(), StaadObject::Root(root));
+            }
+            return serde_json::to_value(&root_id).map_err(|e| e.to_string());
         }
         "geometry" => {
-            let geometry = process_ref.geometry();
-            let static_geometry: Geometry<'static> = unsafe { std::mem::transmute(geometry) };
-            store.insert(new_id.clone(), StaadObject::Geometry(static_geometry));
-            Ok(())
+            let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
+            let process_arc = match store.get(&id) {
+                Some(StaadObject::Process(p)) => Arc::clone(p),
+                _ => return Err("Process not found".to_string()),
+            };
+            let geometry = {
+                let mut process = process_arc.lock().map_err(|e| e.to_string())?;
+                process.geometry()
+            };
+            let geometry_id = geometry.id.clone();
+            if !store.contains_key(&geometry_id) {
+                store.insert(geometry_id.clone(), StaadObject::Geometry(geometry));
+            }
+            return serde_json::to_value(&geometry_id).map_err(|e| e.to_string());
         }
         "command" => {
-            let command = process_ref.command();
-            let static_command: Command<'static> = unsafe { std::mem::transmute(command) };
-            store.insert(new_id.clone(), StaadObject::Command(static_command));
-            Ok(())
+            let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
+            let process_arc = match store.get(&id) {
+                Some(StaadObject::Process(p)) => Arc::clone(p),
+                _ => return Err("Process not found".to_string()),
+            };
+            let command = {
+                let mut process = process_arc.lock().map_err(|e| e.to_string())?;
+                process.command()
+            };
+            let command_id = command.id.clone();
+            if !store.contains_key(&command_id) {
+                store.insert(command_id.clone(), StaadObject::Command(command));
+            }
+            return serde_json::to_value(&command_id).map_err(|e| e.to_string());
         }
         "design" => {
-            let design = process_ref.design();
-            let static_design: Design<'static> = unsafe { std::mem::transmute(design) };
-            store.insert(new_id.clone(), StaadObject::Design(static_design));
-            Ok(())
+            let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
+            let process_arc = match store.get(&id) {
+                Some(StaadObject::Process(p)) => Arc::clone(p),
+                _ => return Err("Process not found".to_string()),
+            };
+            let design = {
+                let mut process = process_arc.lock().map_err(|e| e.to_string())?;
+                process.design()
+            };
+            let design_id = design.id.clone();
+            if !store.contains_key(&design_id) {
+                store.insert(design_id.clone(), StaadObject::Design(design));
+            }
+            return serde_json::to_value(&design_id).map_err(|e| e.to_string());
         }
         "load" => {
-            let load = process_ref.load();
-            let static_load: Load<'static> = unsafe { std::mem::transmute(load) };
-            store.insert(new_id.clone(), StaadObject::Load(static_load));
-            Ok(())
+            let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
+            let process_arc = match store.get(&id) {
+                Some(StaadObject::Process(p)) => Arc::clone(p),
+                _ => return Err("Process not found".to_string()),
+            };
+            let load = {
+                let mut process = process_arc.lock().map_err(|e| e.to_string())?;
+                process.load()
+            };
+            let load_id = load.id.clone();
+            if !store.contains_key(&load_id) {
+                store.insert(load_id.clone(), StaadObject::Load(load));
+            }
+            return serde_json::to_value(&load_id).map_err(|e| e.to_string());
         }
         "output" => {
-            let output = process_ref.output();
-            let static_output: Output<'static> = unsafe { std::mem::transmute(output) };
-            store.insert(new_id.clone(), StaadObject::Output(static_output));
-            Ok(())
+            let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
+            let process_arc = match store.get(&id) {
+                Some(StaadObject::Process(p)) => Arc::clone(p),
+                _ => return Err("Process not found".to_string()),
+            };
+            let output = {
+                let mut process = process_arc.lock().map_err(|e| e.to_string())?;
+                process.output()
+            };
+            let output_id = output.id.clone();
+            if !store.contains_key(&output_id) {
+                store.insert(output_id.clone(), StaadObject::Output(output));
+            }
+            return serde_json::to_value(&output_id).map_err(|e| e.to_string());
         }
         "property" => {
-            let property = process_ref.property();
-            let static_property: Property<'static> = unsafe { std::mem::transmute(property) };
-            store.insert(new_id.clone(), StaadObject::Property(static_property));
-            Ok(())
+            let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
+            let process_arc = match store.get(&id) {
+                Some(StaadObject::Process(p)) => Arc::clone(p),
+                _ => return Err("Process not found".to_string()),
+            };
+            let property = {
+                let mut process = process_arc.lock().map_err(|e| e.to_string())?;
+                process.property()
+            };
+            let property_id = property.id.clone();
+            if !store.contains_key(&property_id) {
+                store.insert(property_id.clone(), StaadObject::Property(property));
+            }
+            return serde_json::to_value(&property_id).map_err(|e| e.to_string());
         }
         "support" => {
-            let support = process_ref.support();
-            let static_support: Support<'static> = unsafe { std::mem::transmute(support) };
-            store.insert(new_id.clone(), StaadObject::Support(static_support));
-            Ok(())
+            let mut store = PROCESS_STORE.lock().map_err(|e| e.to_string())?;
+            let process_arc = match store.get(&id) {
+                Some(StaadObject::Process(p)) => Arc::clone(p),
+                _ => return Err("Process not found".to_string()),
+            };
+            let support = {
+                let mut process = process_arc.lock().map_err(|e| e.to_string())?;
+                process.support()
+            };
+            let support_id = support.id.clone();
+            if !store.contains_key(&support_id) {
+                store.insert(support_id.clone(), StaadObject::Support(support));
+            }
+            return serde_json::to_value(&support_id).map_err(|e| e.to_string());
         }
-        _ => Err("Unknown method".to_string()),
+        _ => return Err("Unknown method".to_string()),
     };
-
-    // process를 다시 복원
-    let process_back = unsafe { Box::from_raw(process_ptr) };
-
-    match result {
-        Ok(_) => {
-            store.insert(id, StaadObject::Process(*process_back));
-            serde_json::to_value(&new_id).map_err(|e| e.to_string())
-        }
-        Err(e) => {
-            store.insert(id, StaadObject::Process(*process_back));
-            Err(e)
-        }
-    }
 }

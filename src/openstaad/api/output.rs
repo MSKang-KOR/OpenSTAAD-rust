@@ -14,19 +14,18 @@ use windows::Win32::System::{
 use windows_core::BSTR;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Output<'a> {
-    #[serde(skip)]
-    pub staad: Option<&'a IDispatch>,
+pub struct Output {
     #[serde(skip)]
     pub dispatch: Option<IDispatch>,
+    pub id: String,
 }
 
-impl<'a> Output<'a> {
-    pub fn new(staad: Option<&'a IDispatch>) -> Self {
-        let _output = unsafe { get_dispatch(staad.unwrap(), "Output", &mut []).unwrap() };
+impl Output {
+    pub fn new(staad: Option<IDispatch>) -> Self {
+        let _output = unsafe { get_dispatch(staad.as_ref().unwrap(), "Output", &mut []).unwrap() };
         Self {
-            staad,
             dispatch: Some(_output),
+            id: uuid::Uuid::new_v4().to_string(),
         }
     }
     // ************************* Analysis Results *************************
@@ -485,5 +484,5 @@ impl<'a> Output<'a> {
     }
 }
 
-unsafe impl<'a> Send for Output<'a> {}
-unsafe impl<'a> Sync for Output<'a> {}
+unsafe impl Send for Output{}
+unsafe impl Sync for Output{}

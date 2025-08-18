@@ -1,29 +1,99 @@
 mod openstaad;
 
-use openstaad::process::StaadProcess;
-use windows::Win32::System::Com::CoUninitialize;
+use openstaad::api::process::StaadProcess;
 
-use crate::openstaad::api::{geometry::Geometry, root::Root};
+use crate::openstaad::tools::com::invoke_method;
 
-#[tokio::main]
-async fn main() {
-    // Example usage of StaadProcess
+use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, anyhow, bail};
+use windows::{
+    Win32::System::{
+        Com::{
+            CLSIDFromProgID, COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize, IDispatch,
+        },
+        Ole::GetActiveObject,
+        Variant::{VARIANT, VariantToInt32},
+    },
+    core::{GUID, HSTRING, IUnknown, Interface, PCWSTR},
+};
+
+fn main() {
     println!("OpenSTAAD Rust Library");
-    let process = StaadProcess::new("");
+    let mut process = StaadProcess::new("");
+    let _ = process.start();
     let _root = process.root();
-    
+
     match _root.get_base_unit() {
         Ok(base_unit) => println!("Base unit: {:#?}", base_unit),
         Err(e) => println!("Error getting base unit: {:#?}", e),
-    }
+    };
 
-    let _geometry = process.geometry();
-    match _geometry.get_node_list() {
-        Ok(v) => println!("Node list result: {:#?}", v),
-        Err(e) => println!("Node list error: {:#?}", e),
-    }
-    
+    // let _geometry = process.geometry();
+    // match _geometry.get_node_list() {
+    //     Ok(v) => println!("Node list result: {:#?}", v),
+    //     Err(e) => println!("Node list error: {:#?}", e),
+    // };
+
+    match _root.set_silent_mode(1) {
+        Ok(code) => println!("set_silent_mode: {:#?}", code),
+        Err(e) => println!("Error getting set_silent_mode: {:#?}", e),
+    };
+    match _root.analyze_ex(1, 0, 1) {
+        Ok(code) => println!("analyze_ex: {:#?}", code),
+        Err(e) => println!("Error getting analyze_ex: {:#?}", e),
+    };
+
     unsafe { CoUninitialize() };
+
+    // unsafe {
+    //     // COM 초기화
+    //     let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+
+    //     // OpenSTAAD 애플리케이션 객체 생성
+    //     let clsid_str = PCWSTR::from_raw(HSTRING::from("StaadPro.OpenSTAAD").as_ptr());
+    //     let clsid = CLSIDFromProgID(clsid_str)
+    //         .context("CLSID 생성 실패")
+    //         .unwrap();
+
+    //     // let staad_app: IDispatch = CoCreateInstance(&clsid, None, CLSCTX_LOCAL_SERVER)
+    //     //     .context("OpenSTAAD 인스턴스 생성 실패")?;
+
+    //     // self.staad_app = Some(staad_app);
+    //     let pv_reserved: Option<*mut core::ffi::c_void> = None;
+    //     let mut ppunk: Option<IUnknown> = None;
+    //     match GetActiveObject(
+    //         &clsid as *const GUID,
+    //         pv_reserved,
+    //         &mut ppunk as *mut Option<IUnknown>,
+    //     ) {
+    //         Err(e) => {
+    //             println!("{:#?}", e);
+    //         }
+    //         _ => {
+    //             if let Some(_ppunk) = ppunk {
+    //                 let staad_dispatch = _ppunk.cast::<IDispatch>();
+    //                 if let Ok(_staad) = staad_dispatch {
+    //                     let mut params = [
+    //                         VARIANT::from(1), // wait
+    //                         VARIANT::from(0), // hidden
+    //                         VARIANT::from(1), // silent
+    //                     ];
+    //                     // let result_variant = invoke_method(&_staad, "AnalyzeEx", &mut params);
+    //                     let _ = invoke_method(&_staad, "SetSilentMode", &mut [VARIANT::from(1)]);
+    //                     let result_variant = invoke_method(&_staad, "AnalyzeEx", &mut params);
+    //                     match result_variant {
+    //                         Ok(var) => {
+    //                             let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
+    //                             println!("Result code: {:#?}", result_code);
+    //                         }
+    //                         Err(e) => {
+    //                             println!("Error::Main::analyze: {:#?}", e)
+    //                         }
+    //                     };
+    //                 };
+    //             }
+    //         }
+    //     };
+    // }
 }
 
 // fn test_root_methods(root: &Root) {
