@@ -1,280 +1,157 @@
-use openstaad_rust::{
-    CoUninitialize,
-    openstaad::{
-        SafeArray, SafeArrayP,
-        new_api::{
-            process::StaadProcess,
-            utils::{StaadObject, TypedParam, execute_method},
-        },
-        safe_array_from_vec1d, variant_with_ptr_from,
-    },
-};
-use windows::Win32::System::{
-    Com::SAFEARRAY,
-    Ole::{SafeArrayCreateVector, SafeArrayGetLBound, SafeArrayGetUBound},
-    Variant::{VARIANT, VT_I4, VariantToInt16Array, VariantToInt32, VariantToInt32Array},
-};
+use chrono::Local;
+use log::{error, info, warn};
+use openstaad_rust::Result;
+use openstaad_rust::com_interop::{GeometryManager, OpenStaadApp};
+use std::fs::OpenOptions;
 
-fn main() {
-    println!("OpenSTAAD Rust Library");
-    let mut process = StaadProcess::new("");
-    let _ = process.start();
+fn main() -> Result<()> {
+    // Initialize file logging with timestamp
+    setup_file_logging()?;
 
-    let _geometry = StaadObject::Geometry(process.geometry());
-    let node_count_result = execute_method(&_geometry, "GetNodeCount", &[]);
-    match node_count_result {
-        Ok(node_count) => println!("node_count: {:#?}", node_count),
-        Err(e) => println!("Error node_count: {:#?}", e),
-    };
+    info!("Starting Staad.Pro COM connection test...");
 
-    let node_coords_result = execute_method(&_geometry, "GetNodeCoordinates", &[1789.into()]);
-    match node_coords_result {
-        Ok(node_coords) => println!("node_coords: {:#?}", node_coords),
-        Err(e) => println!("Error node_coords: {:#?}", e),
-    };
+    // Test 1: Basic COM connection
+    match test_basic_connection() {
+        Ok(_) => info!("✓ Basic connection test passed"),
+        Err(e) => {
+            error!("✗ Basic connection test failed: {}", e);
+            return Err(e);
+        }
+    }
 
-    // let _root = process.root();
-    // match _root.get_base_unit() {
-    //     Ok(base_unit) => println!("Base unit: {:#?}", base_unit),
-    //     Err(e) => println!("Error getting base unit: {:#?}", e),
-    // };
+    // Test 2: Comprehensive geometry operations
+    match test_geometry_operations() {
+        Ok(_) => info!("✓ Geometry operations test passed"),
+        Err(e) => {
+            error!("✗ Geometry operations test failed: {}", e);
+            return Err(e);
+        }
+    }
 
-    // match _root.set_silent_mode(1) {
-    //     Ok(code) => println!("set_silent_mode: {:#?}", code),
-    //     Err(e) => println!("Error getting set_silent_mode: {:#?}", e),
-    // };
-    // match _root.analyze_ex(1, 0, 1) {
-    //     Ok(code) => println!("analyze_ex: {:#?}", code),
-    //     Err(e) => println!("Error getting analyze_ex: {:#?}", e),
-    // };
-
-    unsafe { CoUninitialize() };
-
-    // unsafe {
-    //     // COM 초기화
-    //     let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-
-    //     // OpenSTAAD 애플리케이션 객체 생성
-    //     let clsid_str = PCWSTR::from_raw(HSTRING::from("StaadPro.OpenSTAAD").as_ptr());
-    //     let clsid = CLSIDFromProgID(clsid_str)
-    //         .context("CLSID 생성 실패")
-    //         .unwrap();
-
-    //     // let staad_app: IDispatch = CoCreateInstance(&clsid, None, CLSCTX_LOCAL_SERVER)
-    //     //     .context("OpenSTAAD 인스턴스 생성 실패")?;
-
-    //     // self.staad_app = Some(staad_app);
-    //     let pv_reserved: Option<*mut core::ffi::c_void> = None;
-    //     let mut ppunk: Option<IUnknown> = None;
-    //     match GetActiveObject(
-    //         &clsid as *const GUID,
-    //         pv_reserved,
-    //         &mut ppunk as *mut Option<IUnknown>,
-    //     ) {
-    //         Err(e) => {
-    //             println!("{:#?}", e);
-    //         }
-    //         _ => {
-    //             if let Some(_ppunk) = ppunk {
-    //                 let staad_dispatch = _ppunk.cast::<IDispatch>();
-    //                 if let Ok(_staad) = staad_dispatch {
-    //                     let mut params = [
-    //                         VARIANT::from(1), // wait
-    //                         VARIANT::from(0), // hidden
-    //                         VARIANT::from(1), // silent
-    //                     ];
-    //                     // let result_variant = invoke_method(&_staad, "AnalyzeEx", &mut params);
-    //                     let _ = invoke_method(&_staad, "SetSilentMode", &mut [VARIANT::from(1)]);
-    //                     let result_variant = invoke_method(&_staad, "AnalyzeEx", &mut params);
-    //                     match result_variant {
-    //                         Ok(var) => {
-    //                             let result_code = VariantToInt32(&var as *const VARIANT).unwrap();
-    //                             println!("Result code: {:#?}", result_code);
-    //                         }
-    //                         Err(e) => {
-    //                             println!("Error::Main::analyze: {:#?}", e)
-    //                         }
-    //                     };
-    //                 };
-    //             }
-    //         }
-    //     };
-    // }
+    info!("All tests completed successfully! Staad.Pro COM integration is working.");
+    Ok(())
 }
 
-// fn test_root_methods(root: &Root) {
-//     let set_silent_mode_result = root.set_silent_mode(1);
-//     match set_silent_mode_result {
-//         Ok(v) => println!("set_silent_mode_result success: {:#?}", v),
-//         Err(e) => println!("set_silent_mode_result error: {:#?}", e),
-//     }
+/// Setup file logging to save all logs to a timestamped txt file
+fn setup_file_logging() -> Result<()> {
+    use env_logger::{Builder, Target};
+    use std::io::Write;
 
-//     let analyze_ex_result = root.analyze_ex(0, 0, 0);
-//     match analyze_ex_result {
-//         Ok(v) => {
-//             println!("analyze_ex_result success: {:#?}", v);
-//             let get_staad_file_result = root.get_staad_file(true);
-//             match get_staad_file_result {
-//                 Ok(v) => {
-//                     println!("get_staad_file_result success: {:#?}", v);
-//                     let std_path = Path::new(&v);
-//                     let log_path = std_path.with_extension("log");
-//                     let _watcher_handle = watch_file_background(&log_path);
-//                     _watcher_handle.join().unwrap();
-//                 }
-//                 Err(e) => println!("get_staad_file_result error: {:#?}", e),
-//             }
-//         }
-//         Err(e) => println!("analyze_ex_result error: {:#?}", e),
-//     }
-// }
+    // // Create timestamped log filename
+    // let timestamp = Local::now().format("%Y%m%d_%H%M%S");
+    let log_filename = format!("log_.txt");
 
-// fn test_geometry_node_methods(geometry: &Geometry, base_unit: i32) {
-//     let coordinates = vec![
-//         vec![100., 100., 100.],
-//         vec![200., 200., 200.],
-//         vec![300., 300., 300.],
-//     ];
-//     let add_multiple_result = geometry.add_multiple_nodes(coordinates, base_unit);
-//     match add_multiple_result {
-//         Ok(v) => println!("add_multiple_result success: {:#?}", v),
-//         Err(e) => println!("add_multiple_result error: {:#?}", e),
-//     }
+    // Create or open log file
+    let log_file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&log_filename)?;
 
-//     let add_node_result = geometry.add_node(10601., 113.55, -9481.441, base_unit);
-//     match add_node_result {
-//         Ok(v) => println!("add_node_result success: {:#?}", v),
-//         Err(e) => println!("add_node_result error: {:#?}", e),
-//     }
+    // Initialize logger with custom format
+    Builder::from_default_env()
+        .target(Target::Pipe(Box::new(log_file)))
+        .format(|buf, record| {
+            let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+            writeln!(
+                buf,
+                "[{}] [{}] [{}:{}] {}",
+                timestamp,
+                record.level(),
+                record.file().unwrap_or("unknown"),
+                record.line().unwrap_or(0),
+                record.args()
+            )
+        })
+        .filter_level(log::LevelFilter::Trace) // Log everything
+        .init();
 
-//     let node_ids = vec![2004, 2005, 2006];
-//     let coordinates = vec![
-//         vec![400., 400., 400.],
-//         vec![500., 500., 500.],
-//         vec![600., 600., 600.],
-//     ];
-//     let create_multiple_result = geometry.create_multiple_nodes(node_ids, coordinates);
-//     match create_multiple_result {
-//         Ok(v) => println!("create_multiple_result success: {:#?}", v),
-//         Err(e) => println!("create_multiple_result error: {:#?}", e),
-//     }
+    // Also print to console that logging started
+    println!("✓ Logging initialized - saving to: {}", log_filename);
+    println!("✓ All logs (info, warn, error, debug, trace) will be saved to the file");
+    println!("✓ Starting Staad.Pro COM connection test...\n");
 
-//     let create_node_result = geometry.create_node(2007, 10600., 113.55, -9481.441);
-//     match create_node_result {
-//         Ok(v) => println!("create_node_result success: {:#?}", v),
-//         Err(e) => println!("create_node_result error: {:#?}", e),
-//     }
+    Ok(())
+}
 
-//     let delete_node_result = geometry.delete_node(2007);
-//     match delete_node_result {
-//         Ok(v) => println!("delete_node_result success: {:#?}", v),
-//         Err(e) => println!("delete_node_result error: {:#?}", e),
-//     }
+/// Test basic COM connection and interface access
+fn test_basic_connection() -> Result<()> {
+    info!("Testing basic COM connection...");
 
-//     let get_last_node_no_result = geometry.get_last_node_no();
-//     match get_last_node_no_result {
-//         Ok(v) => println!("get_last_node_no_result success: {:#?}", v),
-//         Err(e) => println!("get_last_node_no_result error: {:#?}", e),
-//     }
+    // Create OpenSTAAD application instance
+    let app = OpenStaadApp::new()
+        .map_err(|e| {
+            error!("Failed to create OpenSTAAD instance. Make sure Staad.Pro is installed and properly registered.");
+            e
+        })?;
 
-//     let get_node_coordinates_result = geometry.get_node_coordinates(1789, base_unit);
-//     match get_node_coordinates_result {
-//         Ok(v) => println!("get_node_coordinates_result success: {:#?}", v),
-//         Err(e) => println!("get_node_coordinates_result error: {:#?}", e),
-//     }
+    info!("Successfully connected to Staad.Pro COM object");
 
-//     let get_node_count_result = geometry.get_node_count();
-//     match get_node_count_result {
-//         Ok(v) => println!("get_node_count_result success: {:#?}", v),
-//         Err(e) => println!("get_node_count_result error: {:#?}", e),
-//     }
+    // Test Geometry interface access
+    let _geometry = app.get_geometry()?;
+    info!("Successfully obtained IOSGeometryUI interface");
 
-//     let get_node_distance_result = geometry.get_node_distance(1, 2, base_unit);
-//     match get_node_distance_result {
-//         Ok(v) => println!("get_node_distance_result success: {:#?}", v),
-//         Err(e) => println!("get_node_distance_result error: {:#?}", e),
-//     }
+    Ok(())
+}
 
-//     let get_node_incidence_result = geometry.get_node_incidence(1789, base_unit);
-//     match get_node_incidence_result {
-//         Ok(v) => println!("get_node_incidence_result success: {:#?}", v),
-//         Err(e) => println!("get_node_incidence_result error: {:#?}", e),
-//     }
+/// Test comprehensive geometry operations
+fn test_geometry_operations() -> Result<()> {
+    info!("Testing geometry operations...");
 
-//     let get_node_incidence_cis2_result = geometry.get_node_incidence_cis2(1789, base_unit);
-//     match get_node_incidence_cis2_result {
-//         Ok(v) => println!("get_node_incidence_cis2_result success: {:#?}", v),
-//         Err(e) => println!("get_node_incidence_cis2_result error: {:#?}", e),
-//     }
+    // Create OpenSTAAD application instance
+    let app = OpenStaadApp::new()?;
 
-//     // let get_node_list_result = geometry.get_node_list();
-//     // match get_node_list_result {
-//     //     Ok(v) => println!("get_node_list_result success: {:#?}", v),
-//     //     Err(e) => println!("get_node_list_result error: {:#?}", e),
-//     // }
+    // Get geometry interface
+    let geometry_interface = app.get_geometry()?;
+    let geometry_manager = GeometryManager::new(geometry_interface);
 
-//     let get_node_number_result =
-//         geometry.get_node_number(10578.4, 115.5, -9478.459444444, base_unit);
-//     match get_node_number_result {
-//         Ok(v) => println!("get_node_number_result success: {:#?}", v),
-//         Err(e) => println!("get_node_number_result error: {:#?}", e),
-//     }
+    // Test 1: Create nodes with specific numbers
+    info!("Creating nodes with specific numbers...");
+    geometry_manager.create_node(1, 0.0, 0.0, 0.0)?;
+    geometry_manager.create_node(2, 10.0, 0.0, 0.0)?;
+    geometry_manager.create_node(3, 20.0, 0.0, 0.0)?;
+    geometry_manager.create_node(4, 10.0, 10.0, 0.0)?;
 
-//     let get_unique_id_result = geometry.get_node_unique_id(1789);
-//     match get_unique_id_result {
-//         Ok(v) => println!("get_unique_id_result success: {:#?}", v),
-//         Err(e) => println!("get_unique_id_result error: {:#?}", e),
-//     }
+    // Test 2: Create beams with specific numbers
+    info!("Creating beams with specific numbers...");
+    geometry_manager.create_beam(1, 1, 2)?;
+    geometry_manager.create_beam(2, 2, 3)?;
+    geometry_manager.create_beam(3, 2, 4)?;
 
-//     let is_orphan_node_result = geometry.is_orphan_node(1789);
-//     match is_orphan_node_result {
-//         Ok(v) => println!("is_orphan_node_result success: {:#?}", v),
-//         Err(e) => println!("is_orphan_node_result error: {:#?}", e),
-//     }
+    // Test 3: Add nodes (auto-numbering)
+    info!("Adding nodes with auto-numbering...");
+    let node5 = geometry_manager.add_node(0.0, 10.0, 0.0)?;
+    let node6 = geometry_manager.add_node(20.0, 10.0, 0.0)?;
+    info!("Auto-generated node numbers: {} and {}", node5, node6);
 
-//     let set_node_coordinate_result =
-//         geometry.set_node_coordinate(1789, 10600., 115.5, -9478.4410, base_unit);
-//     match set_node_coordinate_result {
-//         Ok(v) => println!("set_node_coordinate_result success: {:#?}", v),
-//         Err(e) => println!("set_node_coordinate_result error: {:#?}", e),
-//     }
+    // Test 4: Add beams (auto-numbering)
+    info!("Adding beams with auto-numbering...");
+    let beam4 = geometry_manager.add_beam(1, node5)?;
+    let beam5 = geometry_manager.add_beam(3, node6)?;
+    info!("Auto-generated beam numbers: {} and {}", beam4, beam5);
 
-//     let set_node_unique_id_result = geometry.set_node_unique_id(1789, "NODE_ID_1789");
-//     match set_node_unique_id_result {
-//         Ok(v) => println!("set_node_unique_id_result success: {:#?}", v),
-//         Err(e) => println!("set_node_unique_id_result error: {:#?}", e),
-//     }
-// }
+    // Test 5: Create a simple frame structure
+    info!("Creating a simple frame structure...");
 
-// fn test_output_methods(output: &Output) {
-//     let are_results_available_result = output.are_results_available();
-//     match are_results_available_result {
-//         Ok(v) => println!("are_results_available_result success: {:#?}", v),
-//         Err(e) => println!("are_results_available_result error: {:#?}", e),
-//     }
-//     let get_member_steel_design_ratio_result = output.get_member_steel_design_ratio(1786);
-//     match get_member_steel_design_ratio_result {
-//         Ok(v) => println!("get_member_steel_design_ratio_result success: {:#?}", v),
-//         Err(e) => println!("get_member_steel_design_ratio_result error: {:#?}", e),
-//     }
-// }
+    // Create corner nodes for a rectangular frame
+    let corner1 = geometry_manager.add_node(30.0, 0.0, 0.0)?;
+    let corner2 = geometry_manager.add_node(40.0, 0.0, 0.0)?;
+    let corner3 = geometry_manager.add_node(40.0, 8.0, 0.0)?;
+    let corner4 = geometry_manager.add_node(30.0, 8.0, 0.0)?;
 
-// fn test_design_methods(design: &Design) {
-//     let brief_code = design.get_design_brief_code(1).unwrap();
-//     println!("{:#?}", brief_code);
-//     let get_member_design_parameters_result = design.get_member_design_parameters(1, 1);
-//     match get_member_design_parameters_result {
-//         Ok(v) => println!("get_member_design_parameters_result success: {:#?}", v),
-//         Err(e) => println!("get_member_design_parameters_result error: {:#?}", e),
-//     }
-// }
+    // Create frame beams
+    let _frame_beam1 = geometry_manager.add_beam(corner1, corner2)?;
+    let _frame_beam2 = geometry_manager.add_beam(corner2, corner3)?;
+    let _frame_beam3 = geometry_manager.add_beam(corner3, corner4)?;
+    let _frame_beam4 = geometry_manager.add_beam(corner4, corner1)?;
 
-// fn test_section_methods(property: &Property) {
-//     let _section = property.section();
+    info!("Successfully created a rectangular frame structure");
 
-//     let get_beta_angle_result = _section.get_beta_angle(1272);
-//     match get_beta_angle_result {
-//         Ok(v) => println!("get_beta_angle_result success: {:#?}", v),
-//         Err(e) => println!("get_beta_angle_result error: {:#?}", e),
-//     }
-// }
+    info!("Geometry operations completed successfully!");
+    info!("Check your Staad.Pro application to see the created structure:");
+    info!("- Nodes at various coordinates");
+    info!("- Connecting beams forming a simple structure");
+    info!("- A rectangular frame at the end");
+
+    Ok(())
+}
