@@ -7,7 +7,7 @@ use windows::Win32::System::{
 };
 use windows_core::BSTR;
 
-use crate::openstaad::tools::{com::invoke_method, variant::variant_from_raw_pointer};
+use crate::openstaad::tools::{com::invoke_method, variant::variant_with_ptr_from};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Root {
@@ -165,7 +165,7 @@ impl Root {
         unsafe {
             let error_ptr = &mut 0i32 as *mut i32;
             let mut params = [
-                variant_from_raw_pointer::<i32>(error_ptr),
+                variant_with_ptr_from::<i32>(error_ptr),
                 VARIANT::from(flag),
                 VARIANT::from(name),
             ];
@@ -203,9 +203,9 @@ impl Root {
             let cpu_time_ptr = &mut 0.0 as *mut f64;
 
             let mut params = [
-                variant_from_raw_pointer::<f64>(cpu_time_ptr),
-                variant_from_raw_pointer::<i32>(errors_ptr),
-                variant_from_raw_pointer::<i32>(warnings_ptr),
+                variant_with_ptr_from::<f64>(cpu_time_ptr),
+                variant_with_ptr_from::<i32>(errors_ptr),
+                variant_with_ptr_from::<i32>(warnings_ptr),
                 VARIANT::from(model_path),
             ];
 
@@ -240,10 +240,10 @@ impl Root {
             let build_ptr = &mut 0i32 as *mut i32;
 
             let mut params = [
-                variant_from_raw_pointer::<i32>(build_ptr),
-                variant_from_raw_pointer::<i32>(minor_ptr),
-                variant_from_raw_pointer::<i32>(major_b_ptr),
-                variant_from_raw_pointer::<i32>(major_a_ptr),
+                variant_with_ptr_from::<i32>(build_ptr),
+                variant_with_ptr_from::<i32>(minor_ptr),
+                variant_with_ptr_from::<i32>(major_b_ptr),
+                variant_with_ptr_from::<i32>(major_a_ptr),
             ];
 
             let result_variant = invoke_method(
@@ -298,8 +298,8 @@ impl Root {
             let name_ptr = &mut BSTR::default() as *mut BSTR;
 
             let mut params = [
-                variant_from_raw_pointer::<BSTR>(name_ptr),
-                variant_from_raw_pointer::<BSTR>(proj_id_ptr),
+                variant_with_ptr_from::<BSTR>(name_ptr),
+                variant_with_ptr_from::<BSTR>(proj_id_ptr),
             ];
 
             let result_variant = invoke_method(
@@ -377,19 +377,19 @@ impl Root {
             let comments_ptr = &mut BSTR::default() as *mut BSTR;
 
             let mut params = [
-                variant_from_raw_pointer::<BSTR>(comments_ptr),
-                variant_from_raw_pointer::<BSTR>(a_date_ptr),
-                variant_from_raw_pointer::<BSTR>(approver_name_ptr),
-                variant_from_raw_pointer::<BSTR>(c_date_ptr),
-                variant_from_raw_pointer::<BSTR>(checker_name_ptr),
-                variant_from_raw_pointer::<BSTR>(reference_ptr),
-                variant_from_raw_pointer::<BSTR>(part_ptr),
-                variant_from_raw_pointer::<BSTR>(revision_ptr),
-                variant_from_raw_pointer::<BSTR>(job_number_ptr),
-                variant_from_raw_pointer::<BSTR>(e_date_ptr),
-                variant_from_raw_pointer::<BSTR>(engg_name_ptr),
-                variant_from_raw_pointer::<BSTR>(job_client_ptr),
-                variant_from_raw_pointer::<BSTR>(job_name_ptr),
+                variant_with_ptr_from::<BSTR>(comments_ptr),
+                variant_with_ptr_from::<BSTR>(a_date_ptr),
+                variant_with_ptr_from::<BSTR>(approver_name_ptr),
+                variant_with_ptr_from::<BSTR>(c_date_ptr),
+                variant_with_ptr_from::<BSTR>(checker_name_ptr),
+                variant_with_ptr_from::<BSTR>(reference_ptr),
+                variant_with_ptr_from::<BSTR>(part_ptr),
+                variant_with_ptr_from::<BSTR>(revision_ptr),
+                variant_with_ptr_from::<BSTR>(job_number_ptr),
+                variant_with_ptr_from::<BSTR>(e_date_ptr),
+                variant_with_ptr_from::<BSTR>(engg_name_ptr),
+                variant_with_ptr_from::<BSTR>(job_client_ptr),
+                variant_with_ptr_from::<BSTR>(job_name_ptr),
             ];
 
             let result_variant = invoke_method(
@@ -427,7 +427,7 @@ impl Root {
     pub fn get_input_unit_for_force(&self) -> Result<(bool, String), anyErr> {
         unsafe {
             let unit_ptr = &mut BSTR::default() as *mut BSTR;
-            let mut params = [variant_from_raw_pointer::<BSTR>(unit_ptr)];
+            let mut params = [variant_with_ptr_from::<BSTR>(unit_ptr)];
 
             let result_variant = invoke_method(
                 self.dispatch.as_ref().unwrap(),
@@ -454,7 +454,7 @@ impl Root {
     pub fn get_input_unit_for_length(&self) -> Result<(bool, String), anyErr> {
         unsafe {
             let unit_ptr = &mut BSTR::default() as *mut BSTR;
-            let mut params = [variant_from_raw_pointer::<BSTR>(unit_ptr)];
+            let mut params = [variant_with_ptr_from::<BSTR>(unit_ptr)];
 
             let result_variant = invoke_method(
                 self.dispatch.as_ref().unwrap(),
@@ -525,9 +525,9 @@ impl Root {
             let engg_name_ptr = &mut BSTR::default() as *mut BSTR;
 
             let mut params = [
-                variant_from_raw_pointer::<BSTR>(engg_name_ptr),
-                variant_from_raw_pointer::<BSTR>(job_client_ptr),
-                variant_from_raw_pointer::<BSTR>(job_name_ptr),
+                variant_with_ptr_from::<BSTR>(engg_name_ptr),
+                variant_with_ptr_from::<BSTR>(job_client_ptr),
+                variant_with_ptr_from::<BSTR>(job_name_ptr),
             ];
 
             let result_variant = invoke_method(
@@ -556,7 +556,7 @@ impl Root {
             let file_name_ptr = &mut BSTR::default() as *mut BSTR;
             let mut params = [
                 VARIANT::from(full_path),
-                variant_from_raw_pointer::<BSTR>(file_name_ptr),
+                variant_with_ptr_from::<BSTR>(file_name_ptr),
             ];
 
             let result_variant =
@@ -577,7 +577,7 @@ impl Root {
     pub fn get_staad_file_folder(&self) -> Result<String, anyErr> {
         unsafe {
             let file_folder_ptr = &mut BSTR::default() as *mut BSTR;
-            let mut params = [variant_from_raw_pointer::<BSTR>(file_folder_ptr)];
+            let mut params = [variant_with_ptr_from::<BSTR>(file_folder_ptr)];
 
             let result_variant = invoke_method(
                 self.dispatch.as_ref().unwrap(),
@@ -645,7 +645,7 @@ impl Root {
         unsafe {
             let error_ptr = &mut 0i32 as *mut i32;
             let mut params = [
-                variant_from_raw_pointer::<i32>(error_ptr),
+                variant_with_ptr_from::<i32>(error_ptr),
                 VARIANT::from(modify_flag),
                 VARIANT::from(array_qualifier),
                 VARIANT::from(entity_array),
@@ -731,7 +731,7 @@ impl Root {
         unsafe {
             let error_ptr = &mut 0i32 as *mut i32;
             let mut params = [
-                variant_from_raw_pointer::<i32>(error_ptr),
+                variant_with_ptr_from::<i32>(error_ptr),
                 VARIANT::from(name),
             ];
 
@@ -772,7 +772,7 @@ impl Root {
         unsafe {
             let error_ptr = &mut 0i32 as *mut i32;
             let mut params = [
-                variant_from_raw_pointer::<i32>(error_ptr),
+                variant_with_ptr_from::<i32>(error_ptr),
                 VARIANT::from(name),
             ];
 

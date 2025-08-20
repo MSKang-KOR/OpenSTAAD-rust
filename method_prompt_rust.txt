@@ -13,7 +13,7 @@ pub fn add_multiple_nodes(
                 .map(|coord| coord.into_iter().map(|value| value * unit_factor).collect())
                 .collect();
             let sa_coords = safe_array_from_vec2d::<f64>(_coords)?;
-            let variant_coords = variant_from_raw_pointer::<SafeArray<f64>>(sa_coords);
+            let variant_coords = variant_from::<SafeArray<f64>>(sa_coords);
 
             let mut params = [variant_coords];
             let result_variant = invoke_method(
@@ -81,8 +81,8 @@ pub fn add_multiple_nodes(
         unsafe {
             let sa_ids = safe_array_from_vec1d::<i32>(node_ids)?;
             let sa_coords = safe_array_from_vec2d::<f64>(coordinates)?;
-            let variant_ids = variant_from_raw_pointer::<SafeArray<i32>>(sa_ids);
-            let variant_coords = variant_from_raw_pointer::<SafeArray<f64>>(sa_coords);
+            let variant_ids = variant_from::<SafeArray<i32>>(sa_ids);
+            let variant_coords = variant_from::<SafeArray<f64>>(sa_coords);
 
             let mut params = [variant_coords, variant_ids];
             let result_variant = invoke_method(
@@ -184,9 +184,9 @@ pub fn add_multiple_nodes(
             let y_ptr: *mut f64 = &mut 0. as *mut f64;
             let z_ptr: *mut f64 = &mut 0. as *mut f64;
             let mut params: [VARIANT; 4] = [
-                variant_from_raw_pointer::<f64>(z_ptr),
-                variant_from_raw_pointer::<f64>(y_ptr),
-                variant_from_raw_pointer::<f64>(x_ptr),
+                variant_from::<f64>(z_ptr),
+                variant_from::<f64>(y_ptr),
+                variant_from::<f64>(x_ptr),
                 VARIANT::from(node_no),
             ];
             let result_variant = invoke_method(
@@ -286,9 +286,9 @@ pub fn add_multiple_nodes(
             let y_ptr = &mut 0. as *mut f64;
             let z_ptr = &mut 0. as *mut f64;
             let mut params: [VARIANT; 4] = [
-                variant_from_raw_pointer::<f64>(z_ptr),
-                variant_from_raw_pointer::<f64>(y_ptr),
-                variant_from_raw_pointer::<f64>(x_ptr),
+                variant_from::<f64>(z_ptr),
+                variant_from::<f64>(y_ptr),
+                variant_from::<f64>(x_ptr),
                 VARIANT::from(node_no),
             ];
             let result_variant = invoke_method(
@@ -340,10 +340,10 @@ pub fn add_multiple_nodes(
             let y_ptr = &mut 0. as *mut f64;
             let z_ptr = &mut 0. as *mut f64;
             let mut params: [VARIANT; 5] = [
-                variant_from_raw_pointer::<f64>(z_ptr),
-                variant_from_raw_pointer::<f64>(y_ptr),
-                variant_from_raw_pointer::<f64>(x_ptr),
-                variant_from_raw_pointer::<BSTR>(name_ptr),
+                variant_from::<f64>(z_ptr),
+                variant_from::<f64>(y_ptr),
+                variant_from::<f64>(x_ptr),
+                variant_from::<BSTR>(name_ptr),
                 VARIANT::from(node_no),
             ];
             let result_variant = invoke_method(
@@ -380,7 +380,7 @@ pub fn add_multiple_nodes(
             let node_count = self.get_node_count()?;
             let mut psa = SafeArrayCreateVector(VT_I4, 0, node_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
             let result_variant = invoke_method(

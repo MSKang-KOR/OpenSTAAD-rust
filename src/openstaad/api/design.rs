@@ -2,7 +2,7 @@ use crate::openstaad::tools::{
     com::{get_dispatch, invoke_method},
     parameters::DesignParameters,
     safe_array::safe_array_from_vec1d,
-    variant::{SafeArray, variant_from_raw_pointer},
+    variant::{SafeArray, variant_with_ptr_from},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
@@ -47,7 +47,7 @@ impl Design {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_members = safe_array_from_vec1d::<i32>(members)?;
-            let variant_members = variant_from_raw_pointer::<SafeArray<i32>>(sa_members);
+            let variant_members = variant_with_ptr_from::<SafeArray<i32>>(sa_members);
 
             let mut params = [
                 variant_members,
@@ -90,7 +90,7 @@ impl Design {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_members = safe_array_from_vec1d::<i32>(members)?;
-            let variant_members = variant_from_raw_pointer::<SafeArray<i32>>(sa_members);
+            let variant_members = variant_with_ptr_from::<SafeArray<i32>>(sa_members);
 
             let mut params = [
                 variant_members,
@@ -132,7 +132,7 @@ impl Design {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_members = safe_array_from_vec1d::<i32>(members)?;
-            let variant_members = variant_from_raw_pointer::<SafeArray<i32>>(sa_members);
+            let variant_members = variant_with_ptr_from::<SafeArray<i32>>(sa_members);
 
             let mut params = [
                 variant_members,
@@ -216,7 +216,7 @@ impl Design {
             let instace_ptr: *mut Option<IDispatch> = &mut Some(_instance);
 
             let mut params = [
-                variant_from_raw_pointer::<Option<IDispatch>>(instace_ptr),
+                variant_with_ptr_from::<Option<IDispatch>>(instace_ptr),
                 VARIANT::from(member_no),
                 VARIANT::from(brief_ref),
             ];

@@ -1,46 +1,52 @@
-mod openstaad;
-
-use openstaad::api::process::StaadProcess;
-
-use crate::openstaad::tools::com::invoke_method;
-
-use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, anyhow, bail};
-use windows::{
-    Win32::System::{
-        Com::{
-            CLSIDFromProgID, COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize, IDispatch,
+use openstaad_rust::{
+    CoUninitialize,
+    openstaad::{
+        SafeArray, SafeArrayP,
+        new_api::{
+            process::StaadProcess,
+            utils::{StaadObject, TypedParam, execute_method},
         },
-        Ole::GetActiveObject,
-        Variant::{VARIANT, VariantToInt32},
+        safe_array_from_vec1d, variant_with_ptr_from,
     },
-    core::{GUID, HSTRING, IUnknown, Interface, PCWSTR},
+};
+use windows::Win32::System::{
+    Com::SAFEARRAY,
+    Ole::{SafeArrayCreateVector, SafeArrayGetLBound, SafeArrayGetUBound},
+    Variant::{VARIANT, VT_I4, VariantToInt16Array, VariantToInt32, VariantToInt32Array},
 };
 
 fn main() {
     println!("OpenSTAAD Rust Library");
     let mut process = StaadProcess::new("");
     let _ = process.start();
-    let _root = process.root();
 
-    match _root.get_base_unit() {
-        Ok(base_unit) => println!("Base unit: {:#?}", base_unit),
-        Err(e) => println!("Error getting base unit: {:#?}", e),
+    let _geometry = StaadObject::Geometry(process.geometry());
+    let node_count_result = execute_method(&_geometry, "GetNodeCount", &[]);
+    match node_count_result {
+        Ok(node_count) => println!("node_count: {:#?}", node_count),
+        Err(e) => println!("Error node_count: {:#?}", e),
     };
 
-    // let _geometry = process.geometry();
-    // match _geometry.get_node_list() {
-    //     Ok(v) => println!("Node list result: {:#?}", v),
-    //     Err(e) => println!("Node list error: {:#?}", e),
+    let node_coords_result = execute_method(&_geometry, "GetNodeCoordinates", &[1789.into()]);
+    match node_coords_result {
+        Ok(node_coords) => println!("node_coords: {:#?}", node_coords),
+        Err(e) => println!("Error node_coords: {:#?}", e),
+    };
+
+    // let _root = process.root();
+    // match _root.get_base_unit() {
+    //     Ok(base_unit) => println!("Base unit: {:#?}", base_unit),
+    //     Err(e) => println!("Error getting base unit: {:#?}", e),
     // };
 
-    match _root.set_silent_mode(1) {
-        Ok(code) => println!("set_silent_mode: {:#?}", code),
-        Err(e) => println!("Error getting set_silent_mode: {:#?}", e),
-    };
-    match _root.analyze_ex(1, 0, 1) {
-        Ok(code) => println!("analyze_ex: {:#?}", code),
-        Err(e) => println!("Error getting analyze_ex: {:#?}", e),
-    };
+    // match _root.set_silent_mode(1) {
+    //     Ok(code) => println!("set_silent_mode: {:#?}", code),
+    //     Err(e) => println!("Error getting set_silent_mode: {:#?}", e),
+    // };
+    // match _root.analyze_ex(1, 0, 1) {
+    //     Ok(code) => println!("analyze_ex: {:#?}", code),
+    //     Err(e) => println!("Error getting analyze_ex: {:#?}", e),
+    // };
 
     unsafe { CoUninitialize() };
 

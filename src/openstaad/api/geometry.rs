@@ -1,7 +1,7 @@
 use crate::openstaad::tools::{
     com::{get_dispatch, invoke_method},
     safe_array::{safe_array_from_vec1d, safe_array_from_vec2d},
-    variant::{SafeArray, SafeArrayP, variant_from_raw_pointer},
+    variant::{SafeArray, SafeArrayP, variant_with_ptr_from},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
@@ -23,12 +23,16 @@ pub struct Geometry {
 
 impl Geometry {
     pub fn new(staad: Option<IDispatch>) -> Self {
-        let _geometry = unsafe { get_dispatch(staad.as_ref().unwrap(), "Geometry", &mut []).unwrap() };
+        let _geometry =
+            unsafe { get_dispatch(staad.as_ref().unwrap(), "Geometry", &mut []).unwrap() };
         Self {
             dispatch: Some(_geometry),
             id: uuid::Uuid::new_v4().to_string(),
         }
     }
+    /// Adds multiple nodes with specified node coordinates array.
+    /// # Parameters
+    /// * `[in] faCoordinates` VARIANT array of m * 3 dimension containing coordinates of nodes: [Xi, Yi, Zi].
     pub fn add_multiple_nodes(
         &self,
         coordinates: Vec<Vec<f64>>,
@@ -44,7 +48,7 @@ impl Geometry {
                 .map(|coord| coord.into_iter().map(|value| value * unit_factor).collect())
                 .collect();
             let sa_coords = safe_array_from_vec2d::<f64>(_coords)?;
-            let variant_coords = variant_from_raw_pointer::<SafeArray<f64>>(sa_coords);
+            let variant_coords = variant_with_ptr_from::<SafeArray<f64>>(sa_coords);
 
             let mut params = [variant_coords];
             let result_variant = invoke_method(
@@ -109,8 +113,8 @@ impl Geometry {
         unsafe {
             let sa_ids = safe_array_from_vec1d::<i32>(node_ids)?;
             let sa_coords = safe_array_from_vec2d::<f64>(coordinates)?;
-            let variant_ids = variant_from_raw_pointer::<SafeArray<i32>>(sa_ids);
-            let variant_coords = variant_from_raw_pointer::<SafeArray<f64>>(sa_coords);
+            let variant_ids = variant_with_ptr_from::<SafeArray<i32>>(sa_ids);
+            let variant_coords = variant_with_ptr_from::<SafeArray<f64>>(sa_coords);
 
             let mut params = [variant_coords, variant_ids];
             let result_variant = invoke_method(
@@ -201,9 +205,9 @@ impl Geometry {
             let y_ptr: *mut f64 = &mut 0. as *mut f64;
             let z_ptr: *mut f64 = &mut 0. as *mut f64;
             let mut params: [VARIANT; 4] = [
-                variant_from_raw_pointer::<f64>(z_ptr),
-                variant_from_raw_pointer::<f64>(y_ptr),
-                variant_from_raw_pointer::<f64>(x_ptr),
+                variant_with_ptr_from::<f64>(z_ptr),
+                variant_with_ptr_from::<f64>(y_ptr),
+                variant_with_ptr_from::<f64>(x_ptr),
                 VARIANT::from(node_no),
             ];
             let result_variant = invoke_method(
@@ -298,9 +302,9 @@ impl Geometry {
             let y_ptr = &mut 0. as *mut f64;
             let z_ptr = &mut 0. as *mut f64;
             let mut params: [VARIANT; 4] = [
-                variant_from_raw_pointer::<f64>(z_ptr),
-                variant_from_raw_pointer::<f64>(y_ptr),
-                variant_from_raw_pointer::<f64>(x_ptr),
+                variant_with_ptr_from::<f64>(z_ptr),
+                variant_with_ptr_from::<f64>(y_ptr),
+                variant_with_ptr_from::<f64>(x_ptr),
                 VARIANT::from(node_no),
             ];
             let result_variant = invoke_method(
@@ -352,10 +356,10 @@ impl Geometry {
             let y_ptr = &mut 0. as *mut f64;
             let z_ptr = &mut 0. as *mut f64;
             let mut params: [VARIANT; 5] = [
-                variant_from_raw_pointer::<f64>(z_ptr),
-                variant_from_raw_pointer::<f64>(y_ptr),
-                variant_from_raw_pointer::<f64>(x_ptr),
-                variant_from_raw_pointer::<BSTR>(name_ptr),
+                variant_with_ptr_from::<f64>(z_ptr),
+                variant_with_ptr_from::<f64>(y_ptr),
+                variant_with_ptr_from::<f64>(x_ptr),
+                variant_with_ptr_from::<BSTR>(name_ptr),
                 VARIANT::from(node_no),
             ];
             let result_variant = invoke_method(
@@ -392,7 +396,7 @@ impl Geometry {
             let node_count = self.get_node_count()?;
             let mut psa = SafeArrayCreateVector(VT_I4, 0, node_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
             let result_variant =
@@ -594,7 +598,7 @@ impl Geometry {
     pub fn add_multiple_beams(&self, incidences: Vec<Vec<i32>>) -> Result<(), anyErr> {
         unsafe {
             let sa_incidences = safe_array_from_vec2d::<i32>(incidences)?;
-            let variant_incidences = variant_from_raw_pointer::<SafeArray<i32>>(sa_incidences);
+            let variant_incidences = variant_with_ptr_from::<SafeArray<i32>>(sa_incidences);
 
             let mut params = [variant_incidences];
             let result_variant = invoke_method(
@@ -623,7 +627,7 @@ impl Geometry {
     ) -> Result<(bool, Vec<i32>, Vec<i32>), anyErr> {
         unsafe {
             let sa_nodes = safe_array_from_vec1d::<i32>(node_ids.clone())?;
-            let variant_nodes = variant_from_raw_pointer::<SafeArray<i32>>(sa_nodes);
+            let variant_nodes = variant_with_ptr_from::<SafeArray<i32>>(sa_nodes);
 
             // Get count first to allocate arrays
             let count = self.get_count_of_breakable_beams_at_specific_nodes(node_ids)?;
@@ -635,8 +639,8 @@ impl Geometry {
             let new_sa_ptr = &mut new_sa as *mut *mut SAFEARRAY;
 
             let mut params = [
-                variant_from_raw_pointer::<SafeArrayP<i32>>(new_sa_ptr),
-                variant_from_raw_pointer::<SafeArrayP<i32>>(broken_sa_ptr),
+                variant_with_ptr_from::<SafeArrayP<i32>>(new_sa_ptr),
+                variant_with_ptr_from::<SafeArrayP<i32>>(broken_sa_ptr),
                 variant_nodes,
             ];
 
@@ -714,8 +718,8 @@ impl Geometry {
         unsafe {
             let sa_ids = safe_array_from_vec1d::<i32>(beam_ids)?;
             let sa_incidences = safe_array_from_vec2d::<i32>(incidences)?;
-            let variant_ids = variant_from_raw_pointer::<SafeArray<i32>>(sa_ids);
-            let variant_incidences = variant_from_raw_pointer::<SafeArray<i32>>(sa_incidences);
+            let variant_ids = variant_with_ptr_from::<SafeArray<i32>>(sa_ids);
+            let variant_incidences = variant_with_ptr_from::<SafeArray<i32>>(sa_incidences);
 
             let mut params = [variant_incidences, variant_ids];
             let result_variant = invoke_method(
@@ -781,7 +785,7 @@ impl Geometry {
             let beam_count = self.get_member_count()?;
             let mut psa = SafeArrayCreateVector(VT_I4, 0, beam_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
             let result_variant =
@@ -816,7 +820,7 @@ impl Geometry {
             let beam_count = self.get_no_of_beams_connected_at_node(node_no)?;
             let mut psa = SafeArrayCreateVector(VT_I4, 0, beam_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(node_no)];
             let result_variant = invoke_method(
@@ -857,7 +861,7 @@ impl Geometry {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_nodes = safe_array_from_vec1d::<i32>(node_ids)?;
-            let variant_nodes = variant_from_raw_pointer::<SafeArray<i32>>(sa_nodes);
+            let variant_nodes = variant_with_ptr_from::<SafeArray<i32>>(sa_nodes);
 
             let mut params = [variant_nodes];
             let result_variant = invoke_method(
@@ -897,7 +901,7 @@ impl Geometry {
             }
 
             let sa_beams = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beams = variant_from_raw_pointer::<SafeArray<i32>>(sa_beams);
+            let variant_beams = variant_with_ptr_from::<SafeArray<i32>>(sa_beams);
 
             let mut params = [VARIANT::from(tolerance * unit_factor), variant_beams];
             let result_variant = invoke_method(
@@ -961,8 +965,8 @@ impl Geometry {
             let node_b_ptr = &mut 0i32 as *mut i32;
 
             let mut params = [
-                variant_from_raw_pointer::<i32>(node_b_ptr),
-                variant_from_raw_pointer::<i32>(node_a_ptr),
+                variant_with_ptr_from::<i32>(node_b_ptr),
+                variant_with_ptr_from::<i32>(node_a_ptr),
                 VARIANT::from(beam_no),
             ];
 
@@ -1001,9 +1005,9 @@ impl Geometry {
             let node_b_ptr = &mut 0i32 as *mut i32;
 
             let mut params = [
-                variant_from_raw_pointer::<i32>(node_b_ptr),
-                variant_from_raw_pointer::<i32>(node_a_ptr),
-                variant_from_raw_pointer::<BSTR>(name_ptr),
+                variant_with_ptr_from::<i32>(node_b_ptr),
+                variant_with_ptr_from::<i32>(node_a_ptr),
+                variant_with_ptr_from::<BSTR>(name_ptr),
                 VARIANT::from(beam_no),
             ];
 
@@ -1093,14 +1097,14 @@ impl Geometry {
             }
 
             let sa_beams = safe_array_from_vec1d::<i32>(beam_nos.clone())?;
-            let variant_beams = variant_from_raw_pointer::<SafeArray<i32>>(sa_beams);
+            let variant_beams = variant_with_ptr_from::<SafeArray<i32>>(sa_beams);
 
             let new_beam_count = self.get_intersect_beams_count(beam_nos, tolerance, base_unit)?;
             let mut new_beams_sa = SafeArrayCreateVector(VT_I4, 0, new_beam_count as u32);
             let new_beams_sa_ptr = &mut new_beams_sa as *mut *mut SAFEARRAY;
 
             let mut params = [
-                variant_from_raw_pointer::<SafeArrayP<i32>>(new_beams_sa_ptr),
+                variant_with_ptr_from::<SafeArrayP<i32>>(new_beams_sa_ptr),
                 VARIANT::from(tolerance * unit_factor),
                 variant_beams,
                 VARIANT::from(method),
@@ -1217,7 +1221,7 @@ impl Geometry {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_beams = safe_array_from_vec1d::<i32>(beam_ids)?;
-            let variant_beams = variant_from_raw_pointer::<SafeArray<i32>>(sa_beams);
+            let variant_beams = variant_with_ptr_from::<SafeArray<i32>>(sa_beams);
 
             let mut params = [
                 VARIANT::from(material_name),
@@ -1330,7 +1334,7 @@ impl Geometry {
                 distances.into_iter().map(|d| d * unit_factor).collect();
 
             let sa_distances = safe_array_from_vec1d::<f64>(scaled_distances)?;
-            let variant_distances = variant_from_raw_pointer::<SafeArray<f64>>(sa_distances);
+            let variant_distances = variant_with_ptr_from::<SafeArray<f64>>(sa_distances);
 
             let mut params = [
                 variant_distances,
@@ -1397,7 +1401,7 @@ impl Geometry {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_entities = safe_array_from_vec1d::<i32>(entity_list)?;
-            let variant_entities = variant_from_raw_pointer::<SafeArray<i32>>(sa_entities);
+            let variant_entities = variant_with_ptr_from::<SafeArray<i32>>(sa_entities);
 
             let mut params = [
                 variant_entities,
@@ -1504,7 +1508,7 @@ impl Geometry {
 
             let mut psa = SafeArrayCreateVector(VT_I4, 0, entity_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(group_name)];
             let result_variant = invoke_method(
@@ -1580,7 +1584,7 @@ impl Geometry {
 
             let mut psa = SafeArrayCreateVector(VT_BSTR, 0, group_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<BSTR>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<BSTR>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(group_type)];
             let result_variant = invoke_method(
@@ -1633,7 +1637,7 @@ impl Geometry {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_entities = safe_array_from_vec1d::<i32>(entity_list)?;
-            let variant_entities = variant_from_raw_pointer::<SafeArray<i32>>(sa_entities);
+            let variant_entities = variant_with_ptr_from::<SafeArray<i32>>(sa_entities);
 
             let mut params = [
                 variant_entities,
@@ -1657,15 +1661,15 @@ impl Geometry {
 
 // SAFETY: Geometry can be safely sent between threads because:
 // 1. It contains references to IDispatch COM automation objects designed for cross-thread use
-// 2. The COM runtime handles thread safety for automation objects  
+// 2. The COM runtime handles thread safety for automation objects
 // 3. All operations go through the COM infrastructure which provides thread safety
-unsafe impl Send for Geometry{}
+unsafe impl Send for Geometry {}
 
 // SAFETY: Geometry can be safely shared between threads with proper synchronization because:
 // 1. The underlying COM objects support concurrent access when properly synchronized
 // 2. The struct contains no mutable state that would cause data races
 // 3. All operations are performed through COM method calls which are thread-safe
-unsafe impl Sync for Geometry{}
+unsafe impl Sync for Geometry {}
 
 // :: Node
 // AddMultipleNodes

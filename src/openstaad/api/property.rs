@@ -1,7 +1,7 @@
 use crate::openstaad::tools::{
     com::{get_dispatch, invoke_method},
     safe_array::safe_array_from_vec1d,
-    variant::{SafeArray, SafeArrayP, variant_from_raw_pointer},
+    variant::{SafeArray, SafeArrayP, variant_with_ptr_from},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
@@ -223,7 +223,7 @@ impl Property {
     pub fn create_plate_thickness_property(&self, thickness: Vec<f64>) -> Result<i32, anyErr> {
         unsafe {
             let sa_thickness = safe_array_from_vec1d::<f64>(thickness)?;
-            let variant_thickness = variant_from_raw_pointer::<SafeArray<f64>>(sa_thickness);
+            let variant_thickness = variant_with_ptr_from::<SafeArray<f64>>(sa_thickness);
 
             let mut params = [variant_thickness];
             let result_variant = invoke_method(
@@ -376,7 +376,7 @@ impl Property {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_specs = safe_array_from_vec1d::<f64>(specs)?;
-            let variant_specs = variant_from_raw_pointer::<SafeArray<f64>>(sa_specs);
+            let variant_specs = variant_with_ptr_from::<SafeArray<f64>>(sa_specs);
 
             let mut params = [
                 variant_specs,
@@ -776,7 +776,7 @@ impl Property {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_specs = safe_array_from_vec1d::<f64>(prop_spec_array)?;
-            let variant_specs = variant_from_raw_pointer::<SafeArray<f64>>(sa_specs);
+            let variant_specs = variant_with_ptr_from::<SafeArray<f64>>(sa_specs);
 
             let mut params = [
                 variant_specs,
@@ -817,7 +817,7 @@ impl Property {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_specs = safe_array_from_vec1d::<f64>(prop_spec_array)?;
-            let variant_specs = variant_from_raw_pointer::<SafeArray<f64>>(sa_specs);
+            let variant_specs = variant_with_ptr_from::<SafeArray<f64>>(sa_specs);
 
             let mut params = [
                 variant_specs,
@@ -930,8 +930,8 @@ impl Property {
             let yp_sa_ptr = &mut yp_sa as *mut *mut SAFEARRAY;
 
             let mut params = [
-                variant_from_raw_pointer::<SafeArrayP<f64>>(yp_sa_ptr),
-                variant_from_raw_pointer::<SafeArrayP<f64>>(zp_sa_ptr),
+                variant_with_ptr_from::<SafeArrayP<f64>>(yp_sa_ptr),
+                variant_with_ptr_from::<SafeArrayP<f64>>(zp_sa_ptr),
                 VARIANT::from(is_inner),
                 VARIANT::from(section_name),
                 VARIANT::from(table_ref),
@@ -1000,8 +1000,8 @@ impl Property {
             let count_inner_ptr = &mut 0i32 as *mut i32;
 
             let mut params = [
-                variant_from_raw_pointer::<i32>(count_inner_ptr),
-                variant_from_raw_pointer::<i32>(count_outer_ptr),
+                variant_with_ptr_from::<i32>(count_inner_ptr),
+                variant_with_ptr_from::<i32>(count_outer_ptr),
                 VARIANT::from(section_name),
                 VARIANT::from(table_ref),
             ];
@@ -1047,8 +1047,8 @@ impl Property {
             let yp_sa_ptr = &mut yp_sa as *mut *mut SAFEARRAY;
 
             let mut params = [
-                variant_from_raw_pointer::<SafeArrayP<f64>>(yp_sa_ptr),
-                variant_from_raw_pointer::<SafeArrayP<f64>>(zp_sa_ptr),
+                variant_with_ptr_from::<SafeArrayP<f64>>(yp_sa_ptr),
+                variant_with_ptr_from::<SafeArrayP<f64>>(zp_sa_ptr),
                 VARIANT::from(section_name),
                 VARIANT::from(table_ref),
             ];
@@ -1109,7 +1109,7 @@ impl Property {
     pub fn assign_beta_angle(&self, beam_nos: Vec<i32>, beta_angle: f64) -> Result<i32, anyErr> {
         unsafe {
             let sa_beams = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beams = variant_from_raw_pointer::<SafeArray<i32>>(sa_beams);
+            let variant_beams = variant_with_ptr_from::<SafeArray<i32>>(sa_beams);
 
             let mut params = [VARIANT::from(beta_angle), variant_beams];
             let result_variant = invoke_method(
@@ -1248,8 +1248,8 @@ impl Property {
             }
 
             let mut params = [
-                variant_from_raw_pointer::<SafeArray<f64>>(sa_props),
-                variant_from_raw_pointer::<i32>(prop_type_ptr),
+                variant_with_ptr_from::<SafeArray<f64>>(sa_props),
+                variant_with_ptr_from::<i32>(prop_type_ptr),
                 VARIANT::from(beam_no),
             ];
 
@@ -1386,7 +1386,7 @@ impl Property {
             let beam_count = self.get_section_property_assigned_beam_count(prof_ref_no)?;
             let mut psa = SafeArrayCreateVector(VT_I4, 0, beam_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(prof_ref_no)];
             let result_variant = invoke_method(
@@ -1473,7 +1473,7 @@ impl Property {
             let prop_count = self.get_section_property_count()?;
             let mut psa = SafeArrayCreateVector(VT_I4, 0, prop_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
             let result_variant = invoke_method(
@@ -1514,7 +1514,7 @@ impl Property {
         unsafe {
             let name_ptr = &mut BSTR::default() as *mut BSTR;
             let mut params = [
-                variant_from_raw_pointer::<BSTR>(name_ptr),
+                variant_with_ptr_from::<BSTR>(name_ptr),
                 VARIANT::from(sec_ref_no),
             ];
             let result_variant = invoke_method(
@@ -1588,16 +1588,16 @@ impl Property {
             let tw_ptr = &mut 0.0f64 as *mut f64;
 
             let mut params = [
-                variant_from_raw_pointer::<f64>(tw_ptr),
-                variant_from_raw_pointer::<f64>(tf_ptr),
-                variant_from_raw_pointer::<f64>(iz_ptr),
-                variant_from_raw_pointer::<f64>(iy_ptr),
-                variant_from_raw_pointer::<f64>(ix_ptr),
-                variant_from_raw_pointer::<f64>(az_ptr),
-                variant_from_raw_pointer::<f64>(ay_ptr),
-                variant_from_raw_pointer::<f64>(ax_ptr),
-                variant_from_raw_pointer::<f64>(depth_ptr),
-                variant_from_raw_pointer::<f64>(width_ptr),
+                variant_with_ptr_from::<f64>(tw_ptr),
+                variant_with_ptr_from::<f64>(tf_ptr),
+                variant_with_ptr_from::<f64>(iz_ptr),
+                variant_with_ptr_from::<f64>(iy_ptr),
+                variant_with_ptr_from::<f64>(ix_ptr),
+                variant_with_ptr_from::<f64>(az_ptr),
+                variant_with_ptr_from::<f64>(ay_ptr),
+                variant_with_ptr_from::<f64>(ax_ptr),
+                variant_with_ptr_from::<f64>(depth_ptr),
+                variant_with_ptr_from::<f64>(width_ptr),
                 VARIANT::from(prof_ref_no),
             ];
 
@@ -1635,11 +1635,11 @@ impl Property {
 
             let mut psa = SafeArrayCreateVector(VT_R8, 0, count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<f64>>(psa_ptr);
 
             let mut params = [
                 variant,
-                variant_from_raw_pointer::<i32>(prop_type_ptr),
+                variant_with_ptr_from::<i32>(prop_type_ptr),
                 VARIANT::from(prop_no),
             ];
 
@@ -1829,7 +1829,7 @@ impl Property {
             let table_count = self.get_user_provided_table_count()?;
             let mut psa = SafeArrayCreateVector(VT_I4, 0, table_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
             let result_variant = invoke_method(
@@ -1922,7 +1922,7 @@ impl Property {
             let section_count = self.get_user_provided_table_section_count(table_no)?;
             let mut psa = SafeArrayCreateVector(VT_BSTR, 0, section_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<BSTR>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<BSTR>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(table_no)];
             let result_variant = invoke_method(
@@ -1975,11 +1975,11 @@ impl Property {
 
             let mut psa = SafeArrayCreateVector(VT_R8, 0, count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<f64>>(psa_ptr);
 
             let mut params = [
                 variant,
-                variant_from_raw_pointer::<i32>(section_type_ptr),
+                variant_with_ptr_from::<i32>(section_type_ptr),
                 VARIANT::from(section_name),
                 VARIANT::from(table_no),
             ];
@@ -2064,7 +2064,7 @@ impl Property {
         unsafe {
             let section_type_ptr = &mut 0i32 as *mut i32;
             let mut params = [
-                variant_from_raw_pointer::<i32>(section_type_ptr),
+                variant_with_ptr_from::<i32>(section_type_ptr),
                 VARIANT::from(table_no),
             ];
             let result_variant = invoke_method(
@@ -2156,7 +2156,7 @@ impl Property {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_beams = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beams = variant_from_raw_pointer::<SafeArray<i32>>(sa_beams);
+            let variant_beams = variant_with_ptr_from::<SafeArray<i32>>(sa_beams);
 
             let mut params = [VARIANT::from(property_id), variant_beams];
             let result_variant = invoke_method(
@@ -2189,7 +2189,7 @@ impl Property {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_plates = safe_array_from_vec1d::<i32>(plate_nos)?;
-            let variant_plates = variant_from_raw_pointer::<SafeArray<i32>>(sa_plates);
+            let variant_plates = variant_with_ptr_from::<SafeArray<i32>>(sa_plates);
 
             let mut params = [VARIANT::from(spec_no), variant_plates];
             let result_variant = invoke_method(
@@ -2222,7 +2222,7 @@ impl Property {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_beams = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beams = variant_from_raw_pointer::<SafeArray<i32>>(sa_beams);
+            let variant_beams = variant_with_ptr_from::<SafeArray<i32>>(sa_beams);
 
             let mut params = [VARIANT::from(spec_no), variant_beams];
             let result_variant = invoke_method(
@@ -2259,7 +2259,7 @@ impl Property {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_plates = safe_array_from_vec1d::<i32>(plate_nos)?;
-            let variant_plates = variant_from_raw_pointer::<SafeArray<i32>>(sa_plates);
+            let variant_plates = variant_with_ptr_from::<SafeArray<i32>>(sa_plates);
 
             let mut params = [VARIANT::from(property_id), variant_plates];
             let result_variant = invoke_method(
@@ -2392,7 +2392,7 @@ impl Property {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_nodes = safe_array_from_vec1d::<i32>(dependent_nodes)?;
-            let variant_nodes = variant_from_raw_pointer::<SafeArray<i32>>(sa_nodes);
+            let variant_nodes = variant_with_ptr_from::<SafeArray<i32>>(sa_nodes);
 
             let mut params = [
                 variant_nodes,
@@ -2466,7 +2466,7 @@ impl Property {
             }
 
             let sa_dof = safe_array_from_vec1d::<i32>(dof_releases)?;
-            let variant_dof = variant_from_raw_pointer::<SafeArray<i32>>(sa_dof);
+            let variant_dof = variant_with_ptr_from::<SafeArray<i32>>(sa_dof);
 
             let mut params = [variant_dof, VARIANT::from(node)];
             let result_variant = invoke_method(
@@ -2572,8 +2572,8 @@ impl Property {
 
             let sa_dof = safe_array_from_vec1d::<i32>(dof_releases)?;
             let sa_factors = safe_array_from_vec1d::<f64>(factors)?;
-            let variant_dof = variant_from_raw_pointer::<SafeArray<i32>>(sa_dof);
-            let variant_factors = variant_from_raw_pointer::<SafeArray<f64>>(sa_factors);
+            let variant_dof = variant_with_ptr_from::<SafeArray<i32>>(sa_dof);
+            let variant_factors = variant_with_ptr_from::<SafeArray<f64>>(sa_factors);
 
             let mut params = [variant_factors, variant_dof, VARIANT::from(location)];
             let result_variant = invoke_method(
@@ -2616,8 +2616,8 @@ impl Property {
 
             let sa_dof = safe_array_from_vec1d::<i32>(dof_releases)?;
             let sa_springs = safe_array_from_vec1d::<f64>(spring_constants)?;
-            let variant_dof = variant_from_raw_pointer::<SafeArray<i32>>(sa_dof);
-            let variant_springs = variant_from_raw_pointer::<SafeArray<f64>>(sa_springs);
+            let variant_dof = variant_with_ptr_from::<SafeArray<i32>>(sa_dof);
+            let variant_springs = variant_with_ptr_from::<SafeArray<f64>>(sa_springs);
 
             let mut params = [variant_springs, variant_dof, VARIANT::from(location)];
             let result_variant = invoke_method(
@@ -2783,7 +2783,7 @@ impl Property {
         unsafe {
             let alpha_ptr = &mut 0.0f64 as *mut f64;
             let mut params = [
-                variant_from_raw_pointer::<f64>(alpha_ptr),
+                variant_with_ptr_from::<f64>(alpha_ptr),
                 VARIANT::from(prop_no),
             ];
             let result_variant = invoke_method(
@@ -2810,8 +2810,8 @@ impl Property {
             let cey_ptr = &mut 0.0f64 as *mut f64;
             let cez_ptr = &mut 0.0f64 as *mut f64;
             let mut params = [
-                variant_from_raw_pointer::<f64>(cez_ptr),
-                variant_from_raw_pointer::<f64>(cey_ptr),
+                variant_with_ptr_from::<f64>(cez_ptr),
+                variant_with_ptr_from::<f64>(cey_ptr),
                 VARIANT::from(prop_no),
             ];
             let result_variant = invoke_method(
@@ -2854,7 +2854,7 @@ impl Property {
             let member_count = self.get_inactive_member_count()?;
             let mut psa = SafeArrayCreateVector(VT_I4, 0, member_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
             let result_variant = invoke_method(
@@ -2910,10 +2910,10 @@ impl Property {
             let sa_mp_factor = SafeArrayCreateVector(VT_R8, 0, 3);
 
             let mut params = [
-                variant_from_raw_pointer::<SafeArray<f64>>(sa_mp_factor),
-                variant_from_raw_pointer::<f64>(mp_factor_ptr),
-                variant_from_raw_pointer::<SafeArray<f64>>(sa_spring),
-                variant_from_raw_pointer::<SafeArray<i32>>(sa_release),
+                variant_with_ptr_from::<SafeArray<f64>>(sa_mp_factor),
+                variant_with_ptr_from::<f64>(mp_factor_ptr),
+                variant_with_ptr_from::<SafeArray<f64>>(sa_spring),
+                variant_with_ptr_from::<SafeArray<i32>>(sa_release),
                 VARIANT::from(end),
                 VARIANT::from(beam_no),
             ];
@@ -2987,7 +2987,7 @@ impl Property {
         unsafe {
             let spec_code_ptr = &mut 0i32 as *mut i32;
             let mut params = [
-                variant_from_raw_pointer::<i32>(spec_code_ptr),
+                variant_with_ptr_from::<i32>(spec_code_ptr),
                 VARIANT::from(member_no),
             ];
             let result_variant = invoke_method(
@@ -3802,7 +3802,7 @@ impl Property {
 
             let mut psa = SafeArrayCreateVector(VT_I4, 0, beam_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(material_name)];
             let result_variant = invoke_method(
@@ -3911,7 +3911,7 @@ impl Property {
 
             let mut psa = SafeArrayCreateVector(VT_I4, 0, solid_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(material_name)];
             let result_variant = invoke_method(
@@ -3988,12 +3988,12 @@ impl Property {
             let cr_damp_ptr = &mut 0.0f64 as *mut f64;
 
             let mut params = [
-                variant_from_raw_pointer::<f64>(cr_damp_ptr),
-                variant_from_raw_pointer::<f64>(alpha_ptr),
-                variant_from_raw_pointer::<f64>(density_ptr),
-                variant_from_raw_pointer::<f64>(g_ptr),
-                variant_from_raw_pointer::<f64>(poisson_ptr),
-                variant_from_raw_pointer::<f64>(e_ptr),
+                variant_with_ptr_from::<f64>(cr_damp_ptr),
+                variant_with_ptr_from::<f64>(alpha_ptr),
+                variant_with_ptr_from::<f64>(density_ptr),
+                variant_with_ptr_from::<f64>(g_ptr),
+                variant_with_ptr_from::<f64>(poisson_ptr),
+                variant_with_ptr_from::<f64>(e_ptr),
                 VARIANT::from(mat_no),
             ];
             let result_variant = invoke_method(
@@ -4048,13 +4048,13 @@ impl Property {
             let assigned_ptr = &mut 0i32 as *mut i32;
 
             let mut params = [
-                variant_from_raw_pointer::<i32>(assigned_ptr),
-                variant_from_raw_pointer::<f64>(cr_damp_ptr),
-                variant_from_raw_pointer::<f64>(alpha_ptr),
-                variant_from_raw_pointer::<f64>(density_ptr),
-                variant_from_raw_pointer::<f64>(g_ptr),
-                variant_from_raw_pointer::<f64>(poisson_ptr),
-                variant_from_raw_pointer::<f64>(e_ptr),
+                variant_with_ptr_from::<i32>(assigned_ptr),
+                variant_with_ptr_from::<f64>(cr_damp_ptr),
+                variant_with_ptr_from::<f64>(alpha_ptr),
+                variant_with_ptr_from::<f64>(density_ptr),
+                variant_with_ptr_from::<f64>(g_ptr),
+                variant_with_ptr_from::<f64>(poisson_ptr),
+                variant_with_ptr_from::<f64>(e_ptr),
                 VARIANT::from(mat_no),
             ];
             let result_variant = invoke_method(
@@ -4126,17 +4126,17 @@ impl Property {
             let fcu_ptr = &mut 0.0f64 as *mut f64;
 
             let mut params = [
-                variant_from_raw_pointer::<f64>(fcu_ptr),
-                variant_from_raw_pointer::<f64>(rt_ptr),
-                variant_from_raw_pointer::<f64>(ry_ptr),
-                variant_from_raw_pointer::<f64>(fu_ptr),
-                variant_from_raw_pointer::<f64>(fy_ptr),
-                variant_from_raw_pointer::<f64>(cr_damp_ptr),
-                variant_from_raw_pointer::<f64>(alpha_ptr),
-                variant_from_raw_pointer::<f64>(density_ptr),
-                variant_from_raw_pointer::<f64>(g_ptr),
-                variant_from_raw_pointer::<f64>(poisson_ptr),
-                variant_from_raw_pointer::<f64>(e_ptr),
+                variant_with_ptr_from::<f64>(fcu_ptr),
+                variant_with_ptr_from::<f64>(rt_ptr),
+                variant_with_ptr_from::<f64>(ry_ptr),
+                variant_with_ptr_from::<f64>(fu_ptr),
+                variant_with_ptr_from::<f64>(fy_ptr),
+                variant_with_ptr_from::<f64>(cr_damp_ptr),
+                variant_with_ptr_from::<f64>(alpha_ptr),
+                variant_with_ptr_from::<f64>(density_ptr),
+                variant_with_ptr_from::<f64>(g_ptr),
+                variant_with_ptr_from::<f64>(poisson_ptr),
+                variant_with_ptr_from::<f64>(e_ptr),
                 VARIANT::from(mat_no),
             ];
             let result_variant = invoke_method(
@@ -4191,11 +4191,11 @@ impl Property {
             let damp_ptr = &mut 0.0f64 as *mut f64;
 
             let mut params = [
-                variant_from_raw_pointer::<f64>(damp_ptr),
-                variant_from_raw_pointer::<f64>(alpha_ptr),
-                variant_from_raw_pointer::<f64>(density_ptr),
-                variant_from_raw_pointer::<f64>(poisson_ptr),
-                variant_from_raw_pointer::<f64>(elasticity_ptr),
+                variant_with_ptr_from::<f64>(damp_ptr),
+                variant_with_ptr_from::<f64>(alpha_ptr),
+                variant_with_ptr_from::<f64>(density_ptr),
+                variant_with_ptr_from::<f64>(poisson_ptr),
+                variant_with_ptr_from::<f64>(elasticity_ptr),
                 VARIANT::from(material_name),
             ];
             let result_variant = invoke_method(
@@ -4244,16 +4244,16 @@ impl Property {
             let fcu_ptr = &mut 0.0f64 as *mut f64;
 
             let mut params = [
-                variant_from_raw_pointer::<f64>(fcu_ptr),
-                variant_from_raw_pointer::<f64>(rt_ptr),
-                variant_from_raw_pointer::<f64>(ry_ptr),
-                variant_from_raw_pointer::<f64>(fu_ptr),
-                variant_from_raw_pointer::<f64>(fy_ptr),
-                variant_from_raw_pointer::<f64>(damp_ptr),
-                variant_from_raw_pointer::<f64>(alpha_ptr),
-                variant_from_raw_pointer::<f64>(density_ptr),
-                variant_from_raw_pointer::<f64>(poisson_ptr),
-                variant_from_raw_pointer::<f64>(elasticity_ptr),
+                variant_with_ptr_from::<f64>(fcu_ptr),
+                variant_with_ptr_from::<f64>(rt_ptr),
+                variant_with_ptr_from::<f64>(ry_ptr),
+                variant_with_ptr_from::<f64>(fu_ptr),
+                variant_with_ptr_from::<f64>(fy_ptr),
+                variant_with_ptr_from::<f64>(damp_ptr),
+                variant_with_ptr_from::<f64>(alpha_ptr),
+                variant_with_ptr_from::<f64>(density_ptr),
+                variant_with_ptr_from::<f64>(poisson_ptr),
+                variant_with_ptr_from::<f64>(elasticity_ptr),
                 VARIANT::from(material_name),
             ];
             let result_variant = invoke_method(
@@ -4341,12 +4341,12 @@ impl Property {
             let sa_cr_damp = SafeArrayCreateVector(VT_R8, 0, 2);
 
             let mut params = [
-                variant_from_raw_pointer::<SafeArray<f64>>(sa_cr_damp),
-                variant_from_raw_pointer::<SafeArray<f64>>(sa_alpha),
-                variant_from_raw_pointer::<SafeArray<f64>>(sa_density),
-                variant_from_raw_pointer::<SafeArray<f64>>(sa_g),
-                variant_from_raw_pointer::<SafeArray<f64>>(sa_poisson),
-                variant_from_raw_pointer::<SafeArray<f64>>(sa_e),
+                variant_with_ptr_from::<SafeArray<f64>>(sa_cr_damp),
+                variant_with_ptr_from::<SafeArray<f64>>(sa_alpha),
+                variant_with_ptr_from::<SafeArray<f64>>(sa_density),
+                variant_with_ptr_from::<SafeArray<f64>>(sa_g),
+                variant_with_ptr_from::<SafeArray<f64>>(sa_poisson),
+                variant_with_ptr_from::<SafeArray<f64>>(sa_e),
                 VARIANT::from(mat_no),
             ];
 
@@ -4439,7 +4439,7 @@ impl Property {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_members = safe_array_from_vec1d::<i32>(member_nos)?;
-            let variant_members = variant_from_raw_pointer::<SafeArray<i32>>(sa_members);
+            let variant_members = variant_with_ptr_from::<SafeArray<i32>>(sa_members);
 
             let mut params = [variant_members, VARIANT::from(material_name)];
             let result_variant = invoke_method(
@@ -4503,7 +4503,7 @@ impl Property {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_plates = safe_array_from_vec1d::<i32>(plate_nos)?;
-            let variant_plates = variant_from_raw_pointer::<SafeArray<i32>>(sa_plates);
+            let variant_plates = variant_with_ptr_from::<SafeArray<i32>>(sa_plates);
 
             let mut params = [variant_plates, VARIANT::from(material_name)];
             let result_variant = invoke_method(
@@ -4565,7 +4565,7 @@ impl Property {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_solids = safe_array_from_vec1d::<i32>(solid_nos)?;
-            let variant_solids = variant_from_raw_pointer::<SafeArray<i32>>(sa_solids);
+            let variant_solids = variant_with_ptr_from::<SafeArray<i32>>(sa_solids);
 
             let mut params = [variant_solids, VARIANT::from(material_name)];
             let result_variant = invoke_method(
@@ -4654,11 +4654,11 @@ impl Property {
             let damp_ptr = &mut 0.0f64 as *mut f64;
 
             let mut params = [
-                variant_from_raw_pointer::<f64>(damp_ptr),
-                variant_from_raw_pointer::<f64>(alpha_ptr),
-                variant_from_raw_pointer::<f64>(density_ptr),
-                variant_from_raw_pointer::<f64>(poisson_ptr),
-                variant_from_raw_pointer::<f64>(elasticity_ptr),
+                variant_with_ptr_from::<f64>(damp_ptr),
+                variant_with_ptr_from::<f64>(alpha_ptr),
+                variant_with_ptr_from::<f64>(density_ptr),
+                variant_with_ptr_from::<f64>(poisson_ptr),
+                variant_with_ptr_from::<f64>(elasticity_ptr),
                 VARIANT::from(beam_no),
             ];
             let result_variant = invoke_method(
@@ -4712,14 +4712,14 @@ impl Property {
             let iz_ptr = &mut 0.0f64 as *mut f64;
 
             let mut params = [
-                variant_from_raw_pointer::<f64>(iz_ptr),
-                variant_from_raw_pointer::<f64>(iy_ptr),
-                variant_from_raw_pointer::<f64>(ix_ptr),
-                variant_from_raw_pointer::<f64>(az_ptr),
-                variant_from_raw_pointer::<f64>(ay_ptr),
-                variant_from_raw_pointer::<f64>(ax_ptr),
-                variant_from_raw_pointer::<f64>(depth_ptr),
-                variant_from_raw_pointer::<f64>(width_ptr),
+                variant_with_ptr_from::<f64>(iz_ptr),
+                variant_with_ptr_from::<f64>(iy_ptr),
+                variant_with_ptr_from::<f64>(ix_ptr),
+                variant_with_ptr_from::<f64>(az_ptr),
+                variant_with_ptr_from::<f64>(ay_ptr),
+                variant_with_ptr_from::<f64>(ax_ptr),
+                variant_with_ptr_from::<f64>(depth_ptr),
+                variant_with_ptr_from::<f64>(width_ptr),
                 VARIANT::from(beam_no),
             ];
             let result_variant = invoke_method(
@@ -4780,16 +4780,16 @@ impl Property {
             let tw_ptr = &mut 0.0f64 as *mut f64;
 
             let mut params = [
-                variant_from_raw_pointer::<f64>(tw_ptr),
-                variant_from_raw_pointer::<f64>(tf_ptr),
-                variant_from_raw_pointer::<f64>(iz_ptr),
-                variant_from_raw_pointer::<f64>(iy_ptr),
-                variant_from_raw_pointer::<f64>(ix_ptr),
-                variant_from_raw_pointer::<f64>(az_ptr),
-                variant_from_raw_pointer::<f64>(ay_ptr),
-                variant_from_raw_pointer::<f64>(ax_ptr),
-                variant_from_raw_pointer::<f64>(depth_ptr),
-                variant_from_raw_pointer::<f64>(width_ptr),
+                variant_with_ptr_from::<f64>(tw_ptr),
+                variant_with_ptr_from::<f64>(tf_ptr),
+                variant_with_ptr_from::<f64>(iz_ptr),
+                variant_with_ptr_from::<f64>(iy_ptr),
+                variant_with_ptr_from::<f64>(ix_ptr),
+                variant_with_ptr_from::<f64>(az_ptr),
+                variant_with_ptr_from::<f64>(ay_ptr),
+                variant_with_ptr_from::<f64>(ax_ptr),
+                variant_with_ptr_from::<f64>(depth_ptr),
+                variant_with_ptr_from::<f64>(width_ptr),
                 VARIANT::from(beam_no),
             ];
             let result_variant = invoke_method(
@@ -4841,8 +4841,8 @@ impl Property {
             let sa_spring = SafeArrayCreateVector(VT_R8, 0, 6);
 
             let mut params = [
-                variant_from_raw_pointer::<SafeArray<f64>>(sa_spring),
-                variant_from_raw_pointer::<SafeArray<i32>>(sa_release),
+                variant_with_ptr_from::<SafeArray<f64>>(sa_spring),
+                variant_with_ptr_from::<SafeArray<i32>>(sa_release),
                 VARIANT::from(end),
                 VARIANT::from(beam_no),
             ];

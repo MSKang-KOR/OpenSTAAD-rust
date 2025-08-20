@@ -1,7 +1,7 @@
 use crate::openstaad::tools::{
     com::{get_dispatch, invoke_method},
     safe_array::safe_array_from_vec1d,
-    variant::{SafeArray, SafeArrayP, variant_from_raw_pointer},
+    variant::{SafeArray, SafeArrayP, variant_with_ptr_from},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
@@ -88,9 +88,9 @@ impl Support {
             let sa_release = safe_array_from_vec1d::<f64>(release_spec)?;
             let sa_spring = safe_array_from_vec1d::<f64>(spring_spec)?;
 
-            let variant_coord = variant_from_raw_pointer::<SafeArray<f64>>(sa_coord);
-            let variant_release = variant_from_raw_pointer::<SafeArray<f64>>(sa_release);
-            let variant_spring = variant_from_raw_pointer::<SafeArray<f64>>(sa_spring);
+            let variant_coord = variant_with_ptr_from::<SafeArray<f64>>(sa_coord);
+            let variant_release = variant_with_ptr_from::<SafeArray<f64>>(sa_release);
+            let variant_spring = variant_with_ptr_from::<SafeArray<f64>>(sa_spring);
 
             let mut params = [
                 variant_spring,
@@ -153,8 +153,8 @@ impl Support {
             let sa_release = safe_array_from_vec1d::<f64>(release_spec)?;
             let sa_spring = safe_array_from_vec1d::<f64>(spring_spec)?;
 
-            let variant_release = variant_from_raw_pointer::<SafeArray<f64>>(sa_release);
-            let variant_spring = variant_from_raw_pointer::<SafeArray<f64>>(sa_spring);
+            let variant_release = variant_with_ptr_from::<SafeArray<f64>>(sa_release);
+            let variant_spring = variant_with_ptr_from::<SafeArray<f64>>(sa_spring);
 
             let mut params = [variant_spring, variant_release];
 
@@ -360,8 +360,8 @@ impl Support {
             let spring_sa_ptr = &mut spring_sa as *mut *mut SAFEARRAY;
 
             let mut params = [
-                variant_from_raw_pointer::<SafeArrayP<f64>>(spring_sa_ptr),
-                variant_from_raw_pointer::<SafeArrayP<i32>>(release_sa_ptr),
+                variant_with_ptr_from::<SafeArrayP<f64>>(spring_sa_ptr),
+                variant_with_ptr_from::<SafeArrayP<i32>>(release_sa_ptr),
                 VARIANT::from(support_node),
             ];
 
@@ -448,10 +448,10 @@ impl Support {
             let spring_sa_ptr = &mut spring_sa as *mut *mut SAFEARRAY;
 
             let mut params = [
-                variant_from_raw_pointer::<SafeArrayP<f64>>(spring_sa_ptr),
-                variant_from_raw_pointer::<SafeArrayP<i32>>(release_sa_ptr),
-                variant_from_raw_pointer::<i32>(support_type_ptr),
-                variant_from_raw_pointer::<i32>(support_no_ptr),
+                variant_with_ptr_from::<SafeArrayP<f64>>(spring_sa_ptr),
+                variant_with_ptr_from::<SafeArrayP<i32>>(release_sa_ptr),
+                variant_with_ptr_from::<i32>(support_type_ptr),
+                variant_with_ptr_from::<i32>(support_no_ptr),
                 VARIANT::from(support_node),
             ];
 
@@ -520,7 +520,7 @@ impl Support {
 
             let mut psa = SafeArrayCreateVector(VT_I4, 0, support_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
             let result_variant = invoke_method(

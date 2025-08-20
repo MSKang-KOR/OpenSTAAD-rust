@@ -1,6 +1,6 @@
 use crate::openstaad::tools::{
     com::{get_dispatch, invoke_method},
-    variant::{SafeArrayP, variant_from_raw_pointer},
+    variant::{SafeArrayP, variant_with_ptr_from},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
@@ -83,7 +83,7 @@ impl Output {
     pub fn get_member_steel_design_max_failure_ratio(&self) -> Result<(bool, f64), anyErr> {
         unsafe {
             let ratio_ptr = &mut 0. as *mut f64;
-            let mut params = [variant_from_raw_pointer::<f64>(ratio_ptr)];
+            let mut params = [variant_with_ptr_from::<f64>(ratio_ptr)];
             let result_variant = invoke_method(
                 self.dispatch.as_ref().unwrap(),
                 "GetMemberSteelDesignMaxFailureRatio",
@@ -110,7 +110,7 @@ impl Output {
     pub fn get_member_steel_design_min_failure_ratio(&self) -> Result<(bool, f64), anyErr> {
         unsafe {
             let ratio_ptr = &mut 0. as *mut f64;
-            let mut params = [variant_from_raw_pointer::<f64>(ratio_ptr)];
+            let mut params = [variant_with_ptr_from::<f64>(ratio_ptr)];
             let result_variant = invoke_method(
                 self.dispatch.as_ref().unwrap(),
                 "GetMemberSteelDesignMinFailureRatio",
@@ -139,7 +139,7 @@ impl Output {
         unsafe {
             let ratio_ptr = &mut 0. as *mut f64;
             let mut params = [
-                variant_from_raw_pointer::<f64>(ratio_ptr),
+                variant_with_ptr_from::<f64>(ratio_ptr),
                 VARIANT::from(member_no),
             ];
             let result_variant = invoke_method(
@@ -204,16 +204,16 @@ impl Output {
             let forces_sa_ptr = &mut forces_sa as *mut *mut SAFEARRAY;
 
             let mut params = [
-                variant_from_raw_pointer::<f64>(kl_by_r_ptr),
-                variant_from_raw_pointer::<SafeArrayP<f64>>(forces_sa_ptr),
-                variant_from_raw_pointer::<BSTR>(design_section_ptr),
-                variant_from_raw_pointer::<BSTR>(critical_clause_ptr),
-                variant_from_raw_pointer::<f64>(critical_section_ptr),
-                variant_from_raw_pointer::<i32>(critical_load_case_ptr),
-                variant_from_raw_pointer::<f64>(allowable_ratio_ptr),
-                variant_from_raw_pointer::<f64>(critical_ratio_ptr),
-                variant_from_raw_pointer::<BSTR>(design_status_ptr),
-                variant_from_raw_pointer::<BSTR>(design_code_ptr),
+                variant_with_ptr_from::<f64>(kl_by_r_ptr),
+                variant_with_ptr_from::<SafeArrayP<f64>>(forces_sa_ptr),
+                variant_with_ptr_from::<BSTR>(design_section_ptr),
+                variant_with_ptr_from::<BSTR>(critical_clause_ptr),
+                variant_with_ptr_from::<f64>(critical_section_ptr),
+                variant_with_ptr_from::<i32>(critical_load_case_ptr),
+                variant_with_ptr_from::<f64>(allowable_ratio_ptr),
+                variant_with_ptr_from::<f64>(critical_ratio_ptr),
+                variant_with_ptr_from::<BSTR>(design_status_ptr),
+                variant_with_ptr_from::<BSTR>(design_code_ptr),
                 VARIANT::from(member_no),
             ];
 
@@ -277,7 +277,7 @@ impl Output {
         unsafe {
             let ratio_ptr = &mut 0. as *mut f64;
             let mut params = [
-                variant_from_raw_pointer::<f64>(ratio_ptr),
+                variant_with_ptr_from::<f64>(ratio_ptr),
                 VARIANT::from(member_no),
             ];
             let result_variant = invoke_method(
@@ -313,7 +313,7 @@ impl Output {
         unsafe {
             let ratio_ptr = &mut 0. as *mut f64;
             let mut params = [
-                variant_from_raw_pointer::<f64>(ratio_ptr),
+                variant_with_ptr_from::<f64>(ratio_ptr),
                 VARIANT::from(member_no),
                 VARIANT::from(param_block_name),
             ];
@@ -357,13 +357,13 @@ impl Output {
             let design_section_ptr = &mut BSTR::default() as *mut BSTR;
 
             let mut params = [
-                variant_from_raw_pointer::<BSTR>(design_section_ptr),
-                variant_from_raw_pointer::<BSTR>(critical_clause_ptr),
-                variant_from_raw_pointer::<i32>(critical_load_case_ptr),
-                variant_from_raw_pointer::<f64>(allowable_ratio_ptr),
-                variant_from_raw_pointer::<f64>(critical_ratio_ptr),
-                variant_from_raw_pointer::<BSTR>(design_status_ptr),
-                variant_from_raw_pointer::<BSTR>(design_code_ptr),
+                variant_with_ptr_from::<BSTR>(design_section_ptr),
+                variant_with_ptr_from::<BSTR>(critical_clause_ptr),
+                variant_with_ptr_from::<i32>(critical_load_case_ptr),
+                variant_with_ptr_from::<f64>(allowable_ratio_ptr),
+                variant_with_ptr_from::<f64>(critical_ratio_ptr),
+                variant_with_ptr_from::<BSTR>(design_status_ptr),
+                variant_with_ptr_from::<BSTR>(design_code_ptr),
                 VARIANT::from(member_no),
                 VARIANT::from(param_block_name),
             ];
@@ -438,7 +438,7 @@ impl Output {
         unsafe {
             let name_ptr = &mut BSTR::default() as *mut BSTR;
             let mut params = [
-                variant_from_raw_pointer::<BSTR>(name_ptr),
+                variant_with_ptr_from::<BSTR>(name_ptr),
                 VARIANT::from(index),
             ];
             let result_variant = invoke_method(

@@ -1,7 +1,7 @@
 use crate::openstaad::tools::{
     com::{get_dispatch, invoke_method},
     safe_array::safe_array_from_vec1d,
-    variant::{SafeArray, SafeArrayP, variant_from_raw_pointer},
+    variant::{SafeArray, SafeArrayP, variant_with_ptr_from},
 };
 
 use anyhow::{Context, Error as anyErr, Ok as anyOk, Result, bail};
@@ -99,11 +99,11 @@ impl Load {
             let sa_factors_user = safe_array_from_vec1d::<i32>(factors_user_input)?;
             let sa_factors = safe_array_from_vec1d::<f64>(factors)?;
 
-            let variant_escarpment = variant_from_raw_pointer::<SafeArray<f64>>(sa_escarpment);
-            let variant_bldg = variant_from_raw_pointer::<SafeArray<f64>>(sa_bldg);
-            let variant_units = variant_from_raw_pointer::<SafeArray<i32>>(sa_units);
-            let variant_factors_user = variant_from_raw_pointer::<SafeArray<i32>>(sa_factors_user);
-            let variant_factors = variant_from_raw_pointer::<SafeArray<f64>>(sa_factors);
+            let variant_escarpment = variant_with_ptr_from::<SafeArray<f64>>(sa_escarpment);
+            let variant_bldg = variant_with_ptr_from::<SafeArray<f64>>(sa_bldg);
+            let variant_units = variant_with_ptr_from::<SafeArray<i32>>(sa_units);
+            let variant_factors_user = variant_with_ptr_from::<SafeArray<i32>>(sa_factors_user);
+            let variant_factors = variant_with_ptr_from::<SafeArray<f64>>(sa_factors);
 
             let mut params = [
                 variant_factors,
@@ -154,7 +154,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_nodes = safe_array_from_vec1d::<i32>(node_array)?;
-            let variant_nodes = variant_from_raw_pointer::<SafeArray<i32>>(sa_nodes);
+            let variant_nodes = variant_with_ptr_from::<SafeArray<i32>>(sa_nodes);
 
             let mut params = [
                 variant_nodes,
@@ -193,8 +193,8 @@ impl Load {
         unsafe {
             let sa_intensity = safe_array_from_vec1d::<f64>(intensity)?;
             let sa_height = safe_array_from_vec1d::<f64>(height)?;
-            let variant_intensity = variant_from_raw_pointer::<SafeArray<f64>>(sa_intensity);
-            let variant_height = variant_from_raw_pointer::<SafeArray<f64>>(sa_height);
+            let variant_intensity = variant_with_ptr_from::<SafeArray<f64>>(sa_intensity);
+            let variant_height = variant_with_ptr_from::<SafeArray<f64>>(sa_height);
 
             let mut params = [variant_height, variant_intensity, VARIANT::from(type_no)];
             let result_variant = invoke_method(
@@ -280,9 +280,9 @@ impl Load {
             let sa_escarpment = safe_array_from_vec1d::<f64>(escarpment_data)?;
             let sa_bldg = safe_array_from_vec1d::<f64>(bldg_data)?;
 
-            let variant_unit = variant_from_raw_pointer::<SafeArray<i32>>(sa_unit);
-            let variant_escarpment = variant_from_raw_pointer::<SafeArray<f64>>(sa_escarpment);
-            let variant_bldg = variant_from_raw_pointer::<SafeArray<f64>>(sa_bldg);
+            let variant_unit = variant_with_ptr_from::<SafeArray<i32>>(sa_unit);
+            let variant_escarpment = variant_with_ptr_from::<SafeArray<f64>>(sa_escarpment);
+            let variant_bldg = variant_with_ptr_from::<SafeArray<f64>>(sa_bldg);
 
             let mut params = [
                 VARIANT::from(wall_type),
@@ -345,9 +345,9 @@ impl Load {
             let sa_escarpment = safe_array_from_vec1d::<f64>(escarpment_data)?;
             let sa_bldg = safe_array_from_vec1d::<f64>(bldg_data)?;
 
-            let variant_unit = variant_from_raw_pointer::<SafeArray<i32>>(sa_unit);
-            let variant_escarpment = variant_from_raw_pointer::<SafeArray<f64>>(sa_escarpment);
-            let variant_bldg = variant_from_raw_pointer::<SafeArray<f64>>(sa_bldg);
+            let variant_unit = variant_with_ptr_from::<SafeArray<i32>>(sa_unit);
+            let variant_escarpment = variant_with_ptr_from::<SafeArray<f64>>(sa_escarpment);
+            let variant_bldg = variant_with_ptr_from::<SafeArray<f64>>(sa_bldg);
 
             let mut params = [
                 VARIANT::from(wall_type),
@@ -429,8 +429,8 @@ impl Load {
         unsafe {
             let sa_set1_names = safe_array_from_vec1d::<String>(set1_names)?;
             let sa_set1_vals = safe_array_from_vec1d::<f64>(set1_vals)?;
-            let variant_set1_names = variant_from_raw_pointer::<SafeArray<BSTR>>(sa_set1_names);
-            let variant_set1_vals = variant_from_raw_pointer::<SafeArray<f64>>(sa_set1_vals);
+            let variant_set1_names = variant_with_ptr_from::<SafeArray<BSTR>>(sa_set1_names);
+            let variant_set1_vals = variant_with_ptr_from::<SafeArray<f64>>(sa_set1_vals);
 
             let (variant_set2_names, variant_set2_vals, variant_spectrum_data) =
                 match (set2_names, set2_vals, spectrum_data_pairs) {
@@ -438,8 +438,8 @@ impl Load {
                         let sa_set2_names = safe_array_from_vec1d::<String>(names)?;
                         let sa_set2_vals = safe_array_from_vec1d::<f64>(vals)?;
                         (
-                            variant_from_raw_pointer::<SafeArray<BSTR>>(sa_set2_names),
-                            variant_from_raw_pointer::<SafeArray<f64>>(sa_set2_vals),
+                            variant_with_ptr_from::<SafeArray<BSTR>>(sa_set2_names),
+                            variant_with_ptr_from::<SafeArray<f64>>(sa_set2_vals),
                             VARIANT::default(), // NULL
                         )
                     }
@@ -448,7 +448,7 @@ impl Load {
                         (
                             VARIANT::default(), // NULL
                             VARIANT::default(), // NULL
-                            variant_from_raw_pointer::<SafeArray<f64>>(sa_spectrum),
+                            variant_with_ptr_from::<SafeArray<f64>>(sa_spectrum),
                         )
                     }
                     _ => (VARIANT::default(), VARIANT::default(), VARIANT::default()),
@@ -530,7 +530,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_nodes = safe_array_from_vec1d::<i32>(node_array)?;
-            let variant_nodes = variant_from_raw_pointer::<SafeArray<i32>>(sa_nodes);
+            let variant_nodes = variant_with_ptr_from::<SafeArray<i32>>(sa_nodes);
 
             let mut params = [variant_nodes, VARIANT::from(weight)];
             let result_variant = invoke_method(
@@ -570,7 +570,7 @@ impl Load {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_members = safe_array_from_vec1d::<i32>(member_array)?;
-            let variant_members = variant_from_raw_pointer::<SafeArray<i32>>(sa_members);
+            let variant_members = variant_with_ptr_from::<SafeArray<i32>>(sa_members);
 
             let mut params = [
                 variant_members,
@@ -640,7 +640,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_members = safe_array_from_vec1d::<f64>(member_array)?;
-            let variant_members = variant_from_raw_pointer::<SafeArray<f64>>(sa_members);
+            let variant_members = variant_with_ptr_from::<SafeArray<f64>>(sa_members);
 
             let mut params = [
                 variant_members,
@@ -791,7 +791,7 @@ impl Load {
 
             let mut psa = SafeArrayCreateVector(VT_I4, 0, load_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
             let result_variant = invoke_method(
@@ -868,7 +868,7 @@ impl Load {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_members = safe_array_from_vec1d::<i32>(members)?;
-            let variant_members = variant_from_raw_pointer::<SafeArray<i32>>(sa_members);
+            let variant_members = variant_with_ptr_from::<SafeArray<i32>>(sa_members);
 
             let mut params = [
                 VARIANT::from(param),
@@ -996,7 +996,7 @@ impl Load {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_geom_nos = safe_array_from_vec1d::<i32>(geom_nos)?;
-            let variant_geom_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_geom_nos);
+            let variant_geom_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_geom_nos);
 
             let mut params = [
                 VARIANT::from(load_factor),
@@ -1046,7 +1046,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_node_nos = safe_array_from_vec1d::<i32>(node_nos)?;
-            let variant_node_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_node_nos);
+            let variant_node_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_node_nos);
 
             let mut params = [
                 VARIANT::from(mz),
@@ -1090,7 +1090,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_node_nos = safe_array_from_vec1d::<i32>(node_nos)?;
-            let variant_node_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_node_nos);
+            let variant_node_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_node_nos);
 
             let mut params = [
                 VARIANT::from(disp_value),
@@ -1150,7 +1150,7 @@ impl Load {
         unsafe {
             let mut psa = SafeArrayCreateVector(VT_R8, 0, 6);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant_force = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_ptr);
+            let variant_force = variant_with_ptr_from::<SafeArrayP<f64>>(psa_ptr);
 
             let mut params = [variant_force, VARIANT::from(load_index)];
 
@@ -1221,12 +1221,12 @@ impl Load {
             let psa_my_ptr = &mut psa_my as *mut *mut SAFEARRAY;
             let psa_mz_ptr = &mut psa_mz as *mut *mut SAFEARRAY;
 
-            let variant_fx = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_fx_ptr);
-            let variant_fy = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_fy_ptr);
-            let variant_fz = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_fz_ptr);
-            let variant_mx = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_mx_ptr);
-            let variant_my = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_my_ptr);
-            let variant_mz = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_mz_ptr);
+            let variant_fx = variant_with_ptr_from::<SafeArrayP<f64>>(psa_fx_ptr);
+            let variant_fy = variant_with_ptr_from::<SafeArrayP<f64>>(psa_fy_ptr);
+            let variant_fz = variant_with_ptr_from::<SafeArrayP<f64>>(psa_fz_ptr);
+            let variant_mx = variant_with_ptr_from::<SafeArrayP<f64>>(psa_mx_ptr);
+            let variant_my = variant_with_ptr_from::<SafeArrayP<f64>>(psa_my_ptr);
+            let variant_mz = variant_with_ptr_from::<SafeArrayP<f64>>(psa_mz_ptr);
 
             let mut params = [
                 variant_mz,
@@ -1330,7 +1330,7 @@ impl Load {
     pub fn add_member_area_load(&self, beam_nos: Vec<i32>, load: f64) -> Result<i32, anyErr> {
         unsafe {
             let sa_beam_nos = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beam_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_beam_nos);
+            let variant_beam_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_beam_nos);
 
             let mut params = [VARIANT::from(load), variant_beam_nos];
 
@@ -1372,7 +1372,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_beam_nos = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beam_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_beam_nos);
+            let variant_beam_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_beam_nos);
 
             let mut params = [
                 VARIANT::from(d2),
@@ -1420,7 +1420,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_beam_nos = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beam_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_beam_nos);
+            let variant_beam_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_beam_nos);
 
             let mut params = [
                 VARIANT::from(d2),
@@ -1462,13 +1462,13 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_beam_nos = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beam_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_beam_nos);
+            let variant_beam_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_beam_nos);
 
             let sa_load_start = safe_array_from_vec1d::<f64>(load_start.to_vec())?;
-            let variant_load_start = variant_from_raw_pointer::<SafeArray<f64>>(sa_load_start);
+            let variant_load_start = variant_with_ptr_from::<SafeArray<f64>>(sa_load_start);
 
             let sa_load_end = safe_array_from_vec1d::<f64>(load_end.to_vec())?;
-            let variant_load_end = variant_from_raw_pointer::<SafeArray<f64>>(sa_load_end);
+            let variant_load_end = variant_with_ptr_from::<SafeArray<f64>>(sa_load_end);
 
             let mut params = [variant_load_end, variant_load_start, variant_beam_nos];
 
@@ -1509,7 +1509,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_beam_nos = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beam_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_beam_nos);
+            let variant_beam_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_beam_nos);
 
             let mut params = [
                 VARIANT::from(w3),
@@ -1560,7 +1560,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_beam_nos = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beam_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_beam_nos);
+            let variant_beam_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_beam_nos);
 
             let mut params = [
                 VARIANT::from(d2),
@@ -1612,7 +1612,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_beam_nos = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beam_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_beam_nos);
+            let variant_beam_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_beam_nos);
 
             let mut params = [
                 VARIANT::from(d3),
@@ -1664,7 +1664,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_beam_nos = safe_array_from_vec1d::<i32>(beam_nos)?;
-            let variant_beam_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_beam_nos);
+            let variant_beam_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_beam_nos);
 
             let mut params = [
                 VARIANT::from(d3),
@@ -1744,10 +1744,10 @@ impl Load {
             let psa_d1_ptr = &mut psa_d1 as *mut *mut SAFEARRAY;
             let psa_d2_ptr = &mut psa_d2 as *mut *mut SAFEARRAY;
 
-            let variant_dir = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_dir_ptr);
-            let variant_force = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_force_ptr);
-            let variant_d1 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d1_ptr);
-            let variant_d2 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d2_ptr);
+            let variant_dir = variant_with_ptr_from::<SafeArrayP<i32>>(psa_dir_ptr);
+            let variant_force = variant_with_ptr_from::<SafeArrayP<f64>>(psa_force_ptr);
+            let variant_d1 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d1_ptr);
+            let variant_d2 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d2_ptr);
 
             let mut params = [
                 variant_d2,
@@ -1871,10 +1871,10 @@ impl Load {
             let psa_d1_ptr = &mut psa_d1 as *mut *mut SAFEARRAY;
             let psa_d2_ptr = &mut psa_d2 as *mut *mut SAFEARRAY;
 
-            let variant_dir = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_dir_ptr);
-            let variant_moment = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_moment_ptr);
-            let variant_d1 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d1_ptr);
-            let variant_d2 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d2_ptr);
+            let variant_dir = variant_with_ptr_from::<SafeArrayP<i32>>(psa_dir_ptr);
+            let variant_moment = variant_with_ptr_from::<SafeArrayP<f64>>(psa_moment_ptr);
+            let variant_d1 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d1_ptr);
+            let variant_d2 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d2_ptr);
 
             let mut params = [
                 variant_d2,
@@ -1998,10 +1998,10 @@ impl Load {
             let psa_w2_ptr = &mut psa_w2 as *mut *mut SAFEARRAY;
             let psa_w3_ptr = &mut psa_w3 as *mut *mut SAFEARRAY;
 
-            let variant_dir = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_dir_ptr);
-            let variant_w1 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_w1_ptr);
-            let variant_w2 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_w2_ptr);
-            let variant_w3 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_w3_ptr);
+            let variant_dir = variant_with_ptr_from::<SafeArrayP<i32>>(psa_dir_ptr);
+            let variant_w1 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_w1_ptr);
+            let variant_w2 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_w2_ptr);
+            let variant_w3 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_w3_ptr);
 
             let mut params = [
                 variant_w3,
@@ -2086,15 +2086,15 @@ impl Load {
     ) -> Result<(bool, i32, Vec<f64>, Vec<f64>), anyErr> {
         unsafe {
             let dir_ptr = &mut 0i32 as *mut i32;
-            let variant_dir = variant_from_raw_pointer::<i32>(dir_ptr);
+            let variant_dir = variant_with_ptr_from::<i32>(dir_ptr);
 
             let mut psa_force = SafeArrayCreateVector(VT_R8, 0, 3);
             let psa_force_ptr = &mut psa_force as *mut *mut SAFEARRAY;
-            let variant_force = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_force_ptr);
+            let variant_force = variant_with_ptr_from::<SafeArrayP<f64>>(psa_force_ptr);
 
             let mut psa_dist = SafeArrayCreateVector(VT_R8, 0, 3);
             let psa_dist_ptr = &mut psa_dist as *mut *mut SAFEARRAY;
-            let variant_dist = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_dist_ptr);
+            let variant_dist = variant_with_ptr_from::<SafeArrayP<f64>>(psa_dist_ptr);
 
             let mut params = [
                 variant_dist,
@@ -2209,11 +2209,11 @@ impl Load {
             let psa_d1_ptr = &mut psa_d1 as *mut *mut SAFEARRAY;
             let psa_d2_ptr = &mut psa_d2 as *mut *mut SAFEARRAY;
 
-            let variant_dir = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_dir_ptr);
-            let variant_w1 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_w1_ptr);
-            let variant_w2 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_w2_ptr);
-            let variant_d1 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d1_ptr);
-            let variant_d2 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d2_ptr);
+            let variant_dir = variant_with_ptr_from::<SafeArrayP<i32>>(psa_dir_ptr);
+            let variant_w1 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_w1_ptr);
+            let variant_w2 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_w2_ptr);
+            let variant_d1 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d1_ptr);
+            let variant_d2 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d2_ptr);
 
             let mut params = [
                 variant_d2,
@@ -2353,11 +2353,11 @@ impl Load {
             let psa_d2_ptr = &mut psa_d2 as *mut *mut SAFEARRAY;
             let psa_d3_ptr = &mut psa_d3 as *mut *mut SAFEARRAY;
 
-            let variant_dir = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_dir_ptr);
-            let variant_force = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_force_ptr);
-            let variant_d1 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d1_ptr);
-            let variant_d2 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d2_ptr);
-            let variant_d3 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d3_ptr);
+            let variant_dir = variant_with_ptr_from::<SafeArrayP<i32>>(psa_dir_ptr);
+            let variant_force = variant_with_ptr_from::<SafeArrayP<f64>>(psa_force_ptr);
+            let variant_d1 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d1_ptr);
+            let variant_d2 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d2_ptr);
+            let variant_d3 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d3_ptr);
 
             let mut params = [
                 variant_d3,
@@ -2497,11 +2497,11 @@ impl Load {
             let psa_d2_ptr = &mut psa_d2 as *mut *mut SAFEARRAY;
             let psa_d3_ptr = &mut psa_d3 as *mut *mut SAFEARRAY;
 
-            let variant_dir = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_dir_ptr);
-            let variant_moment = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_moment_ptr);
-            let variant_d1 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d1_ptr);
-            let variant_d2 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d2_ptr);
-            let variant_d3 = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_d3_ptr);
+            let variant_dir = variant_with_ptr_from::<SafeArrayP<i32>>(psa_dir_ptr);
+            let variant_moment = variant_with_ptr_from::<SafeArrayP<f64>>(psa_moment_ptr);
+            let variant_d1 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d1_ptr);
+            let variant_d2 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d2_ptr);
+            let variant_d3 = variant_with_ptr_from::<SafeArrayP<f64>>(psa_d3_ptr);
 
             let mut params = [
                 variant_d3,
@@ -2784,11 +2784,11 @@ impl Load {
 
             let mut psa_beams = SafeArrayCreateVector(VT_I4, 0, beam_count as u32);
             let psa_beams_ptr = &mut psa_beams as *mut *mut SAFEARRAY;
-            let variant_beams = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_beams_ptr);
+            let variant_beams = variant_with_ptr_from::<SafeArrayP<i32>>(psa_beams_ptr);
 
             let mut psa_areas = SafeArrayCreateVector(VT_R8, 0, beam_count as u32);
             let psa_areas_ptr = &mut psa_areas as *mut *mut SAFEARRAY;
-            let variant_areas = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_areas_ptr);
+            let variant_areas = variant_with_ptr_from::<SafeArrayP<f64>>(psa_areas_ptr);
 
             let mut params = [
                 variant_areas,
@@ -2931,25 +2931,25 @@ impl Load {
         unsafe {
             let sa_primary_cases = safe_array_from_vec1d::<i32>(primary_load_cases)?;
             let variant_primary_cases =
-                variant_from_raw_pointer::<SafeArray<i32>>(sa_primary_cases);
+                variant_with_ptr_from::<SafeArray<i32>>(sa_primary_cases);
 
             let sa_pl_factors = safe_array_from_vec1d::<f64>(pl_factors)?;
-            let variant_pl_factors = variant_from_raw_pointer::<SafeArray<f64>>(sa_pl_factors);
+            let variant_pl_factors = variant_with_ptr_from::<SafeArray<f64>>(sa_pl_factors);
 
             let sa_pl_directions = safe_array_from_vec1d::<i32>(pl_directions)?;
             let variant_pl_directions =
-                variant_from_raw_pointer::<SafeArray<i32>>(sa_pl_directions);
+                variant_with_ptr_from::<SafeArray<i32>>(sa_pl_directions);
 
             let sa_reference_cases = safe_array_from_vec1d::<i32>(reference_load_cases)?;
             let variant_reference_cases =
-                variant_from_raw_pointer::<SafeArray<i32>>(sa_reference_cases);
+                variant_with_ptr_from::<SafeArray<i32>>(sa_reference_cases);
 
             let sa_rl_factors = safe_array_from_vec1d::<f64>(rl_factors)?;
-            let variant_rl_factors = variant_from_raw_pointer::<SafeArray<f64>>(sa_rl_factors);
+            let variant_rl_factors = variant_with_ptr_from::<SafeArray<f64>>(sa_rl_factors);
 
             let sa_rl_directions = safe_array_from_vec1d::<i32>(rl_directions)?;
             let variant_rl_directions =
-                variant_from_raw_pointer::<SafeArray<i32>>(sa_rl_directions);
+                variant_with_ptr_from::<SafeArray<i32>>(sa_rl_directions);
 
             let mut params = [
                 variant_rl_directions,
@@ -2990,10 +2990,10 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_ref_cases = safe_array_from_vec1d::<i32>(ref_load_cases)?;
-            let variant_ref_cases = variant_from_raw_pointer::<SafeArray<i32>>(sa_ref_cases);
+            let variant_ref_cases = variant_with_ptr_from::<SafeArray<i32>>(sa_ref_cases);
 
             let sa_factors = safe_array_from_vec1d::<f64>(factors)?;
-            let variant_factors = variant_from_raw_pointer::<SafeArray<f64>>(sa_factors);
+            let variant_factors = variant_with_ptr_from::<SafeArray<f64>>(sa_factors);
 
             let mut params = [variant_factors, variant_ref_cases];
 
@@ -3023,10 +3023,10 @@ impl Load {
     pub fn add_repeat_load(&self, load_cases: Vec<i32>, factors: Vec<f64>) -> Result<bool, anyErr> {
         unsafe {
             let sa_load_cases = safe_array_from_vec1d::<i32>(load_cases)?;
-            let variant_load_cases = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_cases);
+            let variant_load_cases = variant_with_ptr_from::<SafeArray<i32>>(sa_load_cases);
 
             let sa_factors = safe_array_from_vec1d::<f64>(factors)?;
-            let variant_factors = variant_from_raw_pointer::<SafeArray<f64>>(sa_factors);
+            let variant_factors = variant_with_ptr_from::<SafeArray<f64>>(sa_factors);
 
             let mut params = [variant_factors, variant_load_cases];
 
@@ -3165,16 +3165,16 @@ impl Load {
 
             let mut psa_loads = SafeArrayCreateVector(VT_I4, 0, factor_count as u32);
             let psa_loads_ptr = &mut psa_loads as *mut *mut SAFEARRAY;
-            let variant_loads = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_loads_ptr);
+            let variant_loads = variant_with_ptr_from::<SafeArrayP<i32>>(psa_loads_ptr);
 
             let mut psa_factors = SafeArrayCreateVector(VT_R8, 0, factor_count as u32);
             let psa_factors_ptr = &mut psa_factors as *mut *mut SAFEARRAY;
-            let variant_factors = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_factors_ptr);
+            let variant_factors = variant_with_ptr_from::<SafeArrayP<f64>>(psa_factors_ptr);
 
             let mut psa_directions = SafeArrayCreateVector(VT_I4, 0, factor_count as u32);
             let psa_directions_ptr = &mut psa_directions as *mut *mut SAFEARRAY;
             let variant_directions =
-                variant_from_raw_pointer::<SafeArrayP<i32>>(psa_directions_ptr);
+                variant_with_ptr_from::<SafeArrayP<i32>>(psa_directions_ptr);
 
             let mut params = [
                 variant_directions,
@@ -3276,11 +3276,11 @@ impl Load {
 
             let mut psa_loads = SafeArrayCreateVector(VT_I4, 0, sets_count as u32);
             let psa_loads_ptr = &mut psa_loads as *mut *mut SAFEARRAY;
-            let variant_loads = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_loads_ptr);
+            let variant_loads = variant_with_ptr_from::<SafeArrayP<i32>>(psa_loads_ptr);
 
             let mut psa_factors = SafeArrayCreateVector(VT_R8, 0, sets_count as u32);
             let psa_factors_ptr = &mut psa_factors as *mut *mut SAFEARRAY;
-            let variant_factors = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_factors_ptr);
+            let variant_factors = variant_with_ptr_from::<SafeArrayP<f64>>(psa_factors_ptr);
 
             let mut params = [variant_factors, variant_loads, VARIANT::from(index)];
 
@@ -3419,11 +3419,11 @@ impl Load {
 
             let mut psa_loads = SafeArrayCreateVector(VT_I4, 0, factor_count as u32);
             let psa_loads_ptr = &mut psa_loads as *mut *mut SAFEARRAY;
-            let variant_loads = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_loads_ptr);
+            let variant_loads = variant_with_ptr_from::<SafeArrayP<i32>>(psa_loads_ptr);
 
             let mut psa_factors = SafeArrayCreateVector(VT_R8, 0, factor_count as u32);
             let psa_factors_ptr = &mut psa_factors as *mut *mut SAFEARRAY;
-            let variant_factors = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_factors_ptr);
+            let variant_factors = variant_with_ptr_from::<SafeArrayP<f64>>(psa_factors_ptr);
 
             let mut params = [variant_factors, variant_loads, VARIANT::from(index)];
 
@@ -3588,13 +3588,13 @@ impl Load {
     ) -> Result<(i32, i32, i32), anyErr> {
         unsafe {
             let sa_load_list = safe_array_from_vec1d::<i32>(load_list)?;
-            let variant_load_list = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_list);
+            let variant_load_list = variant_with_ptr_from::<SafeArray<i32>>(sa_load_list);
 
             let start_ptr = &mut start_load_case_no as *mut i32;
-            let variant_start = variant_from_raw_pointer::<i32>(start_ptr);
+            let variant_start = variant_with_ptr_from::<i32>(start_ptr);
 
             let generated_ptr = &mut 0i32 as *mut i32;
-            let variant_generated = variant_from_raw_pointer::<i32>(generated_ptr);
+            let variant_generated = variant_with_ptr_from::<i32>(generated_ptr);
 
             let mut params = [
                 VARIANT::from(negative_z),
@@ -3651,10 +3651,10 @@ impl Load {
     ) -> Result<(i32, i32), anyErr> {
         unsafe {
             let sa_load_list = safe_array_from_vec1d::<i32>(load_list)?;
-            let variant_load_list = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_list);
+            let variant_load_list = variant_with_ptr_from::<SafeArray<i32>>(sa_load_list);
 
             let start_ptr = &mut start_load_case_no as *mut i32;
-            let variant_start = variant_from_raw_pointer::<i32>(start_ptr);
+            let variant_start = variant_with_ptr_from::<i32>(start_ptr);
 
             let mut params = [
                 variant_start,
@@ -3771,11 +3771,11 @@ impl Load {
 
             let mut psa_loads = SafeArrayCreateVector(VT_I4, 0, pairs_count as u32);
             let psa_loads_ptr = &mut psa_loads as *mut *mut SAFEARRAY;
-            let variant_loads = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_loads_ptr);
+            let variant_loads = variant_with_ptr_from::<SafeArrayP<i32>>(psa_loads_ptr);
 
             let mut psa_factors = SafeArrayCreateVector(VT_R8, 0, factor_size as u32);
             let psa_factors_ptr = &mut psa_factors as *mut *mut SAFEARRAY;
-            let variant_factors = variant_from_raw_pointer::<SafeArrayP<f64>>(psa_factors_ptr);
+            let variant_factors = variant_with_ptr_from::<SafeArrayP<f64>>(psa_factors_ptr);
 
             let mut params = [variant_factors, variant_loads, VARIANT::from(load_comb_no)];
 
@@ -3860,7 +3860,7 @@ impl Load {
 
             let mut psa = SafeArrayCreateVector(VT_I4, 0, case_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
             let result_variant = invoke_method(
@@ -3968,7 +3968,7 @@ impl Load {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_load_cases = safe_array_from_vec1d::<i32>(load_case_nos)?;
-            let variant_load_cases = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_cases);
+            let variant_load_cases = variant_with_ptr_from::<SafeArray<i32>>(sa_load_cases);
 
             let mut params = [VARIANT::from(is_reference_loads), variant_load_cases];
 
@@ -3997,7 +3997,7 @@ impl Load {
     pub fn clear_reference_load_case(&self, load_case_nos: Vec<i32>) -> Result<bool, anyErr> {
         unsafe {
             let sa_load_cases = safe_array_from_vec1d::<i32>(load_case_nos)?;
-            let variant_load_cases = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_cases);
+            let variant_load_cases = variant_with_ptr_from::<SafeArray<i32>>(sa_load_cases);
 
             let mut params = [variant_load_cases];
 
@@ -4031,7 +4031,7 @@ impl Load {
     ) -> Result<i32, anyErr> {
         unsafe {
             let sa_load_cases = safe_array_from_vec1d::<i32>(load_case_list)?;
-            let variant_load_cases = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_cases);
+            let variant_load_cases = variant_with_ptr_from::<SafeArray<i32>>(sa_load_cases);
 
             let mut params = [variant_load_cases, VARIANT::from(list_type)];
 
@@ -4183,7 +4183,7 @@ impl Load {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_load_cases = safe_array_from_vec1d::<i32>(load_case_nos)?;
-            let variant_load_cases = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_cases);
+            let variant_load_cases = variant_with_ptr_from::<SafeArray<i32>>(sa_load_cases);
 
             let mut params = [VARIANT::from(is_reference_loads), variant_load_cases];
 
@@ -4212,7 +4212,7 @@ impl Load {
     pub fn delete_reference_load_cases(&self, load_case_nos: Vec<i32>) -> Result<bool, anyErr> {
         unsafe {
             let sa_load_cases = safe_array_from_vec1d::<i32>(load_case_nos)?;
-            let variant_load_cases = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_cases);
+            let variant_load_cases = variant_with_ptr_from::<SafeArray<i32>>(sa_load_cases);
 
             let mut params = [variant_load_cases];
 
@@ -4270,7 +4270,7 @@ impl Load {
 
             let mut psa = SafeArrayCreateVector(VT_I4, 0, list_size as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(load_index), VARIANT::from(load_type)];
 
@@ -4493,7 +4493,7 @@ impl Load {
 
             let mut psa = SafeArrayCreateVector(VT_I4, 0, load_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(load_list_index)];
 
@@ -4590,7 +4590,7 @@ impl Load {
 
             let mut psa = SafeArrayCreateVector(VT_I4, 0, primary_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
             let result_variant = invoke_method(
@@ -4693,7 +4693,7 @@ impl Load {
     pub fn set_load_type(&self, load_nos: Vec<i32>, load_type: i32) -> Result<i32, anyErr> {
         unsafe {
             let sa_load_nos = safe_array_from_vec1d::<i32>(load_nos)?;
-            let variant_load_nos = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_nos);
+            let variant_load_nos = variant_with_ptr_from::<SafeArray<i32>>(sa_load_nos);
 
             let mut params = [VARIANT::from(load_type), variant_load_nos];
 
@@ -4793,7 +4793,7 @@ impl Load {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_load_cases = safe_array_from_vec1d::<i32>(load_case_list)?;
-            let variant_load_cases = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_cases);
+            let variant_load_cases = variant_with_ptr_from::<SafeArray<i32>>(sa_load_cases);
 
             let mut params = [variant_load_cases, VARIANT::from(env_no)];
 
@@ -4829,7 +4829,7 @@ impl Load {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_load_cases = safe_array_from_vec1d::<i32>(load_case_list)?;
-            let variant_load_cases = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_cases);
+            let variant_load_cases = variant_with_ptr_from::<SafeArray<i32>>(sa_load_cases);
 
             let mut params = [
                 variant_load_cases,
@@ -4908,7 +4908,7 @@ impl Load {
 
             let mut psa = SafeArrayCreateVector(VT_I4, 0, envelope_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant];
             let result_variant = invoke_method(
@@ -4952,8 +4952,8 @@ impl Load {
         unsafe {
             let env_type_ptr = &mut 0i32 as *mut i32;
             let load_count_ptr = &mut 0i32 as *mut i32;
-            let variant_env_type = variant_from_raw_pointer::<i32>(env_type_ptr);
-            let variant_load_count = variant_from_raw_pointer::<i32>(load_count_ptr);
+            let variant_env_type = variant_with_ptr_from::<i32>(env_type_ptr);
+            let variant_load_count = variant_with_ptr_from::<i32>(load_count_ptr);
 
             let mut params = [variant_load_count, variant_env_type, VARIANT::from(env_no)];
 
@@ -4993,7 +4993,7 @@ impl Load {
 
             let mut psa = SafeArrayCreateVector(VT_I4, 0, load_count as u32);
             let psa_ptr = &mut psa as *mut *mut SAFEARRAY;
-            let variant = variant_from_raw_pointer::<SafeArrayP<i32>>(psa_ptr);
+            let variant = variant_with_ptr_from::<SafeArrayP<i32>>(psa_ptr);
 
             let mut params = [variant, VARIANT::from(env_no)];
             let result_variant = invoke_method(
@@ -5039,7 +5039,7 @@ impl Load {
     ) -> Result<bool, anyErr> {
         unsafe {
             let sa_load_cases = safe_array_from_vec1d::<i32>(load_case_list)?;
-            let variant_load_cases = variant_from_raw_pointer::<SafeArray<i32>>(sa_load_cases);
+            let variant_load_cases = variant_with_ptr_from::<SafeArray<i32>>(sa_load_cases);
 
             let mut params = [variant_load_cases, VARIANT::from(env_no)];
 
