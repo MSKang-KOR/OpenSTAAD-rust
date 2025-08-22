@@ -4,9 +4,10 @@
 // NOTE: This code is highly platform-specific and will only compile and run on Windows
 // with OpenSTAAD installed.
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use log::{info, warn};
-use std::{ffi::c_void, mem, ptr};
+use std::{ffi::c_void, mem, ptr::null_mut};
+use windows::core::GUID;
 use windows::{
     Win32::System::{
         Com::{
@@ -40,6 +41,7 @@ fn initialize_openstaad() -> Result<IDispatch> {
         windows::Win32::System::Com::CLSIDFromProgID(PCWSTR(prog_id.as_ptr()))
             .map_err(|e| anyhow!("CLSIDFromProgID failed: {}", e))?
     };
+    println!("clsid: {:#?}", clsid);
 
     let openstaad_app = unsafe {
         CoCreateInstance(&clsid, None, CLSCTX_LOCAL_SERVER)
@@ -71,12 +73,14 @@ impl OpenStaadApp {
 
         let prop_name = HSTRING::from("Geometry");
         let mut disp_id = 0;
+        println!("{:#?}", self.app);
 
+        let riid = &GUID::default() as *const GUID;
         unsafe {
             // 1. Get the Dispatch ID for the "Geometry" property.
             self.app
                 .GetIDsOfNames(
-                    &windows::core::GUID::default(),
+                    &GUID::default(),
                     &PCWSTR(prop_name.as_ptr()),
                     1,
                     0,
@@ -97,7 +101,7 @@ impl OpenStaadApp {
             self.app
                 .Invoke(
                     disp_id,
-                    &windows::core::GUID::default(),
+                    &GUID::default(),
                     0,
                     DISPATCH_PROPERTYGET,
                     &disp_params,
@@ -127,9 +131,7 @@ impl OpenStaadApp {
                 .ok_or_else(|| anyhow!("Invalid IDispatch pointer in VARIANT"))?
                 .clone();
 
-            let geometry_interface: IOSGeometryUI = dispatch
-                .cast()
-                .map_err(|e| anyhow!("Failed to cast to IOSGeometryUI: {}", e))?;
+            let geometry_interface: IOSGeometryUI = unsafe { dispatch.cast()? };
 
             info!("Successfully accessed 'Geometry' property.");
 
