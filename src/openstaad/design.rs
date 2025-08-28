@@ -1,0 +1,73 @@
+use serde::Serialize;
+use std::collections::HashMap;
+use windows::Win32::System::Com::IDispatch;
+
+use crate::tools::value_types::{InType as itype, MethodSignature, OutType as otype};
+
+#[derive(Debug, Serialize)]
+pub struct Design {
+    pub id: String,
+    #[serde(skip)]
+    pub dispatch: IDispatch,
+    #[serde(skip)]
+    pub methods: HashMap<String, MethodSignature>,
+}
+
+impl Design {
+    pub fn new(dispatch: IDispatch) -> Self {
+        let mut methods = HashMap::new();
+
+        // Design: Steel
+        methods.insert(
+            "AssignDesignCommand".to_string(),
+            MethodSignature {
+                inputs: vec![itype::Int, itype::Str, itype::Str, itype::VecInt],
+                outputs: vec![otype::Int],
+            },
+        );
+        methods.insert(
+            "AssignDesignGroup".to_string(),
+            MethodSignature {
+                inputs: vec![itype::Int, itype::Str, itype::Str, itype::Int, itype::VecInt],
+                outputs: vec![otype::Int],
+            },
+        );
+        methods.insert(
+            "AssignDesignParameter".to_string(),
+            MethodSignature {
+                inputs: vec![itype::Int, itype::Str, itype::Str, itype::VecInt],
+                outputs: vec![otype::Int],
+            },
+        );
+        methods.insert(
+            "CreateDesignBrief".to_string(),
+            MethodSignature {
+                inputs: vec![itype::Int],
+                outputs: vec![otype::Int],
+            },
+        );
+        methods.insert(
+            "GetDesignBriefCode".to_string(),
+            MethodSignature {
+                inputs: vec![itype::Int],
+                outputs: vec![otype::Int],
+            },
+        );
+        methods.insert(
+            "GetMemberDesignParameters".to_string(),
+            MethodSignature {
+                inputs: vec![itype::Int, itype::Int, itype::MemberSteelDgnParams],
+                outputs: vec![otype::Int],
+            },
+        );
+
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            dispatch,
+            methods,
+        }
+    }
+}
+
+unsafe impl Send for Design {}
+unsafe impl Sync for Design {}
