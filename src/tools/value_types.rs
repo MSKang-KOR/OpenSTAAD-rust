@@ -1,11 +1,6 @@
-use std::{
-    collections::HashMap,
-    ffi::c_void,
-    sync::{Arc, Mutex},
-};
+use std::ffi::c_void;
 
 use anyhow::{Context, Result, anyhow, bail};
-use serde::{Deserialize, Serialize};
 use serde_json;
 use serde_json::Value;
 use windows::Win32::{
@@ -76,8 +71,140 @@ impl InType {
             Self::MutVecDouble => OutType::VecDouble.to_value(variant),
             Self::MutVecStr => OutType::VecStr.to_value(variant),
             Self::MemberSteelDgnParams => OutType::MemberSteelDgnParams.to_value(variant),
-            _ => bail!("to_output method can be used for only InType::Mut variant."),
+            _ => bail!("`to_output_As` method can be used for only InType::Mut*."),
         }
+    }
+    pub fn to_input_as(&self, value: &Value) -> Result<Input> {
+        match self {
+            Self::Int => value
+                .as_i64()
+                .ok_or_else(|| anyhow!("Invalid i32 value"))?
+                .try_into()
+                .map(Input::Int)
+                .map_err(|_| anyhow!("i32 overflow")),
+            Self::Double => value
+                .as_f64()
+                .ok_or_else(|| anyhow!("Invalid i32 value"))
+                .map(Input::Double)
+                .map_err(|e| anyhow!(e)),
+            Self::Str => value
+                .as_str()
+                .ok_or_else(|| anyhow!("Invalid str value"))?
+                .try_into()
+                .map(Input::Str)
+                .map_err(|_| anyhow!("str overflow")),
+            Self::Bool => value
+                .as_bool()
+                .ok_or_else(|| anyhow!("Invalid bool value"))
+                .map(Input::Bool)
+                .map_err(|e| anyhow!(e)),
+            Self::VecInt => {
+                let array = value.as_array().ok_or(anyhow!("Invalid array parameter"))?;
+                let mut result = Vec::new();
+                for v in array.iter() {
+                    let i64_val = v.as_i64().ok_or(anyhow!("Invalid i32 in array"))?;
+                    let i32_val = i64_val.try_into().map_err(|_| anyhow!("i32 overflow"))?;
+                    result.push(i32_val);
+                }
+                Ok(Input::VecInt(result))
+            }
+            Self::VecDouble => {
+                let array = value.as_array().ok_or(anyhow!("Invalid array parameter"))?;
+                let mut result = Vec::new();
+                for v in array.iter() {
+                    let f64_val = v.as_f64().ok_or(anyhow!("Invalid f64 in array"))?;
+                    result.push(f64_val);
+                }
+                Ok(Input::VecDouble(result))
+            }
+            Self::VecStr => {
+                let array = value.as_array().ok_or(anyhow!("Invalid array parameter"))?;
+                let mut result = Vec::new();
+                for v in array.iter() {
+                    let str_val = v.as_str().ok_or(anyhow!("Invalid str in array"))?;
+                    let string_val = str_val.try_into().map_err(|_| anyhow!("str overflow"))?;
+                    result.push(string_val);
+                }
+                Ok(Input::VecStr(result))
+            }
+            Self::Vec2dInt => {
+                let arr2 = value
+                    .as_array()
+                    .ok_or(anyhow!("Invalid 2D array parameter"))?;
+                let mut result = Vec::new();
+                for arr in arr2.iter() {
+                    let _arr = arr.as_array().ok_or(anyhow!("Invalid inner array"))?;
+                    let mut row = Vec::new();
+                    for v in _arr.iter() {
+                        let as_v = v.as_i64().ok_or(anyhow!("Invalid i32 in 2D array"))?;
+                        let _v = as_v.try_into().map_err(|_| anyhow!("i32 overflow"))?;
+                        row.push(_v);
+                    }
+                    result.push(row);
+                }
+                Ok(Input::Vec2dInt(result))
+            }
+            Self::Vec2dDouble => {
+                let arr2 = value
+                    .as_array()
+                    .ok_or(anyhow!("Invalid 2D array parameter"))?;
+                let mut result = Vec::new();
+                for arr in arr2.iter() {
+                    let _arr = arr.as_array().ok_or(anyhow!("Invalid inner array"))?;
+                    let mut row = Vec::new();
+                    for v in _arr.iter() {
+                        let _v = v.as_f64().ok_or(anyhow!("Invalid f32 in 2D array"))?;
+                        row.push(_v);
+                    }
+                    result.push(row);
+                }
+                Ok(Input::Vec2dDouble(result))
+            }
+            Self::Vec2dStr => {
+                let arr2 = value
+                    .as_array()
+                    .ok_or(anyhow!("Invalid 2D array parameter"))?;
+                let mut result = Vec::new();
+                for arr in arr2.iter() {
+                    let _arr = arr.as_array().ok_or(anyhow!("Invalid inner array"))?;
+                    let mut row = Vec::new();
+                    for v in _arr.iter() {
+                        let as_v = v.as_str().ok_or(anyhow!("Invalid str in 2D array"))?;
+                        let _v = as_v.try_into().map_err(|_| anyhow!("str overflow"))?;
+                        row.push(_v);
+                    }
+                    result.push(row);
+                }
+                Ok(Input::Vec2dStr(result))
+            }
+            _ => Err(anyhow!("`to_input_as` method can not be used {:#?}.", self)),
+        }
+    }
+
+    pub fn is_general_type(&self) -> bool {
+        [
+            InType::Int,
+            InType::Double,
+            InType::Str,
+            InType::Bool,
+            InType::VecInt,
+            InType::VecDouble,
+            InType::VecStr,
+            InType::Vec2dInt,
+            InType::Vec2dDouble,
+            InType::Vec2dStr,
+        ]
+        .contains(self)
+    }
+    pub fn count_general_type(_inputs: &Vec<InType>) -> usize {
+        _inputs.iter().filter(|v| v.is_general_type()).count()
+    }
+    pub fn filter_general_type(_inputs: &Vec<InType>) -> Vec<Self> {
+        _inputs
+            .iter()
+            .filter(|v| v.is_general_type())
+            .cloned()
+            .collect()
     }
 }
 

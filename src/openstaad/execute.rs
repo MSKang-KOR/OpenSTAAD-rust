@@ -1,5 +1,5 @@
-use anyhow::{Context, Result, bail};
-use log::{info, warn};
+use anyhow::{Result, bail};
+use log::warn;
 use serde_json::Value::Null;
 use serde_json::{Value, to_value as to_json};
 use windows::Win32::System::Com::{
@@ -16,6 +16,7 @@ use windows::Win32::{
 };
 use windows_core::{BSTR, HSTRING, PCWSTR};
 
+// use crate::tools::value_types::count_general_input;
 use crate::{
     openstaad::bindings::Staad,
     tools::{
@@ -36,18 +37,18 @@ pub fn execute_method(instance: &Staad, method_name: &str, params: &[Input]) -> 
         Staad::Output(v) => (&v.dispatch, &v.methods),
         Staad::Property(v) => (&v.dispatch, &v.methods),
         Staad::Support(v) => (&v.dispatch, &v.methods),
-        _ => bail!("Unsupported Staad instance".to_string()),
+        _ => bail!("[Execute] Unsupported Staad instance".to_string()),
     };
-    let (_arguments, _result) = match methods.get(method_name) {
+    let (_inputs, _outputs) = match methods.get(method_name) {
         Some(sig) => (&sig.inputs, &sig.outputs),
-        None => bail!(format!("Unsupported method: {}", method_name)),
+        None => bail!(format!("[Execute] Unsupported method: {}", method_name)),
     };
 
     let params_count = params.len();
-    let required_count = count_general_input(_arguments);
+    let required_count = InType::count_general_type(_inputs);
     if params_count != required_count {
         bail!(
-            "'{}' method takes {} arguments but {} arguments were supplied",
+            "[Execute] '{}' method takes {} arguments but {} arguments were supplied",
             method_name,
             required_count,
             params_count
@@ -56,11 +57,11 @@ pub fn execute_method(instance: &Staad, method_name: &str, params: &[Input]) -> 
 
     // Create separate storage for mutable pointers to ensure each has unique memory location
     let mut mut_storages: Vec<Box<dyn std::any::Any>> = Vec::new();
-    let mut __variants: Vec<VARIANT> = _arguments
+    let mut __variants: Vec<VARIANT> = _inputs
         .iter()
         .enumerate()
         .map(|(i, _type)| {
-            if is_general_input(_type) {
+            if _type.is_general_type() {
                 return params[i].to_variant();
             }
             // Create individual storage for each mutable parameter
@@ -128,15 +129,15 @@ pub fn execute_method(instance: &Staad, method_name: &str, params: &[Input]) -> 
     let mut __params: &mut [VARIANT] = &mut __variants[..];
     __params.reverse();
     unsafe {
-        let args_len = _arguments.len();
+        let args_len = _inputs.len();
         let invoke_result = invoke_method(app, method_name, __params);
         match invoke_result {
             Ok(result_variant) => {
                 let mut result_values: Vec<Value> = Vec::new();
-                for (oi, ot) in _result.iter().enumerate() {
+                for (oi, ot) in _outputs.iter().enumerate() {
                     let serde_v = match ot {
                         &OutType::Index(i) => {
-                            let in_type = _arguments.get(i as usize).unwrap();
+                            let in_type = _inputs.get(i as usize).unwrap();
                             let _var = &__params[args_len - ((i + 1) as usize)];
                             let _v = in_type.to_output_as(_var);
                             let _ = VariantClear(_var as *const VARIANT as *mut VARIANT);
@@ -170,26 +171,6 @@ pub fn execute_method(instance: &Staad, method_name: &str, params: &[Input]) -> 
             Err(e) => bail!("Fail to invoke method: {}", e),
         }
     }
-}
-
-fn is_general_input(input_type: &InType) -> bool {
-    [
-        InType::Int,
-        InType::Double,
-        InType::Str,
-        InType::Bool,
-        InType::VecInt,
-        InType::VecDouble,
-        InType::VecStr,
-        InType::Vec2dInt,
-        InType::Vec2dDouble,
-        InType::Vec2dStr,
-    ]
-    .contains(input_type)
-}
-
-fn count_general_input(args: &Vec<InType>) -> usize {
-    args.iter().filter(|arg| is_general_input(arg)).count()
 }
 
 fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: usize) -> u32 {

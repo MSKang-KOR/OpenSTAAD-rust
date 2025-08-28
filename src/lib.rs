@@ -3,15 +3,14 @@ pub mod tools;
 
 pub mod binding;
 
-pub use anyhow::{Context, Result, bail};
-use log::{error, info};
+pub use anyhow::{Context, Error, Result, anyhow, bail};
 pub use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 
 use openstaad::bindings::Staad;
 use serde_json::Value;
-use tools::value_types::{InType, Input, OutType};
+use tools::value_types::{InType, Input};
 
 use crate::openstaad::app::OpenStaad;
 use crate::openstaad::execute::execute_method;
@@ -178,15 +177,55 @@ pub fn openstaad_rust(id: String, method: String, params: Vec<Value>) -> Result<
                 }
             }
         }
-        // "invoke" => {
-        //     let mut store = API_STORE.lock().map_err(|e| e.to_string())?;
-        //     let arc = store.get(&id);
-        //     if let Some(instance) = arc {
-        //         execute_method(instance, method, params);
-        //     } else {
-        //         return Err(format!("Instance with '{}' method not found", method));
-        //     }
-        // }
+        "invoke" => {
+            let mut store = API_STORE.lock().map_err(|e| e.to_string())?;
+            let arc = store.get(&id);
+            if let Some(instance) = arc {
+                let converted_params = convert_to_inputs(instance, method.as_str(), &params)
+                    .map_err(|e| e.to_string())?;
+                return execute_method(instance, method.as_str(), converted_params.as_slice())
+                    .map_err(|e| e.to_string());
+            } else {
+                return Err(format!("Instance with '{}' method not found", method));
+            }
+        }
         _ => return Err("Unsupported method".to_string()),
     };
+}
+
+fn convert_to_inputs(instance: &Staad, method: &str, params: &Vec<Value>) -> Result<Vec<Input>> {
+    let methods = match instance {
+        Staad::OpenStaad(v) => &v.methods,
+        Staad::Geometry(v) => &v.methods,
+        Staad::Command(v) => &v.methods,
+        Staad::Design(v) => &v.methods,
+        Staad::Load(v) => &v.methods,
+        Staad::Output(v) => &v.methods,
+        Staad::Property(v) => &v.methods,
+        Staad::Support(v) => &v.methods,
+        _ => bail!("[Convert] Unsupported Staad instance".to_string()),
+    };
+    let (_inputs, _outputs) = match methods.get(method) {
+        Some(sig) => (&sig.inputs, &sig.outputs),
+        None => bail!(format!("[Convert] Unsupported method: {}", method)),
+    };
+
+    let params_count = params.len();
+    let required_count = InType::count_general_type(_inputs);
+    if params_count != required_count {
+        bail!(
+            "[Convert] '{}' method takes {} arguments but {} arguments were supplied",
+            method,
+            required_count,
+            params_count
+        );
+    }
+
+    let converted_inputs: Result<Vec<Input>, Error> = InType::filter_general_type(_inputs)
+        .iter()
+        .enumerate()
+        .map(|(i, _type)| _type.to_input_as(&params[i]))
+        .collect();
+
+    converted_inputs
 }
