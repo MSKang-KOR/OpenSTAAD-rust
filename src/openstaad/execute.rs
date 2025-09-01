@@ -27,8 +27,8 @@ use crate::{
     },
 };
 
-pub fn execute_method(instance: &Staad, method_name: &str, params: &[Input]) -> Result<Value> {
-    let (app, methods) = match instance {
+pub fn execute_method(instance: &Staad, method: &str, params: &[Input]) -> Result<Value> {
+    let (app, _methods) = match instance {
         Staad::OpenStaad(v) => (&v.dispatch, &v.methods),
         Staad::Geometry(v) => (&v.dispatch, &v.methods),
         Staad::Command(v) => (&v.dispatch, &v.methods),
@@ -39,9 +39,9 @@ pub fn execute_method(instance: &Staad, method_name: &str, params: &[Input]) -> 
         Staad::Support(v) => (&v.dispatch, &v.methods),
         _ => bail!("[Execute] Unsupported Staad instance".to_string()),
     };
-    let (_inputs, _outputs) = match methods.get(method_name) {
+    let (_inputs, _outputs) = match _methods.get(method) {
         Some(sig) => (&sig.inputs, &sig.outputs),
-        None => bail!(format!("[Execute] Unsupported method: {}", method_name)),
+        None => bail!(format!("[Execute] Unsupported method: {}", method)),
     };
 
     let params_count = params.len();
@@ -49,7 +49,7 @@ pub fn execute_method(instance: &Staad, method_name: &str, params: &[Input]) -> 
     if params_count != required_count {
         bail!(
             "[Execute] '{}' method takes {} arguments but {} arguments were supplied",
-            method_name,
+            method,
             required_count,
             params_count
         );
@@ -91,7 +91,7 @@ pub fn execute_method(instance: &Staad, method_name: &str, params: &[Input]) -> 
                     variant_with_ptr_from::<bool>(ptr)
                 }
                 InType::MutVecInt => unsafe {
-                    let count = get_array_count(app, method_name, params, i);
+                    let count = get_array_count(app, method, params, i);
                     let psa = SafeArrayCreateVector(VT_I4, 0, count as u32);
                     let mut mut_value = Box::new(psa);
                     let ptr = mut_value.as_mut() as *mut *mut SAFEARRAY;
@@ -99,7 +99,7 @@ pub fn execute_method(instance: &Staad, method_name: &str, params: &[Input]) -> 
                     variant_with_ptr_from::<SafeArrayP<i32>>(ptr)
                 },
                 InType::MutVecDouble => unsafe {
-                    let count = get_array_count(app, method_name, params, i);
+                    let count = get_array_count(app, method, params, i);
                     let psa = SafeArrayCreateVector(VT_R8, 0, count as u32);
                     let mut mut_value = Box::new(psa);
                     let ptr = mut_value.as_mut() as *mut *mut SAFEARRAY;
@@ -107,7 +107,7 @@ pub fn execute_method(instance: &Staad, method_name: &str, params: &[Input]) -> 
                     variant_with_ptr_from::<SafeArrayP<f64>>(ptr)
                 },
                 InType::MutVecStr => unsafe {
-                    let count = get_array_count(app, method_name, params, i);
+                    let count = get_array_count(app, method, params, i);
                     let psa = SafeArrayCreateVector(VT_BSTR, 0, count as u32);
                     let mut mut_value = Box::new(psa);
                     let ptr = mut_value.as_mut() as *mut *mut SAFEARRAY;
@@ -130,7 +130,7 @@ pub fn execute_method(instance: &Staad, method_name: &str, params: &[Input]) -> 
     __params.reverse();
     unsafe {
         let args_len = _inputs.len();
-        let invoke_result = invoke_method(app, method_name, __params);
+        let invoke_result = invoke_method(app, method, __params);
         match invoke_result {
             Ok(result_variant) => {
                 let mut result_values: Vec<Value> = Vec::new();

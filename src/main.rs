@@ -8,9 +8,20 @@ use openstaad_rust::{
         variant_with_ptr_from,
     },
 };
-use std::{fs::OpenOptions, sync::Arc};
-use windows::Win32::System::Variant::{VARIANT, VariantToInt32, VariantToStringAlloc};
+use std::{ffi::OsStr, fs::OpenOptions, os::windows::ffi::OsStrExt, sync::Arc};
+use windows::Win32::System::{
+    Com::CoUninitialize,
+    Variant::{VARIANT, VariantToInt32, VariantToStringAlloc},
+};
 use windows_core::BSTR;
+
+use std::mem;
+use std::ptr;
+use windows::Win32::Foundation::{CloseHandle, FALSE};
+use windows::Win32::System::Threading::{
+    CREATE_NO_WINDOW, DETACHED_PROCESS, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION,
+    STARTUPINFOW, WaitForSingleObject,
+};
 
 fn main() -> Result<()> {
     // Initialize file logging with timestamp
@@ -18,48 +29,46 @@ fn main() -> Result<()> {
 
     info!("Starting Staad.Pro COM connection test...");
 
-    // Create OpenSTAAD application instance
-    let path = "C:\\Program Files\\Bentley\\Engineering\\STAAD.Pro 2025\\STAAD\\Bentley.Staad.exe"
-        .to_string();
-    let _openstaad = OpenStaad::new(Some(path)).map_err(|e| {
+    // let system_path =
+    //     "C:\\Program Files\\Bentley\\Engineering\\STAAD.Pro 2025\\STAAD\\Bentley.Staad.exe";
+    // let std_path = "C:\\Users\\kms36\\Downloads\\staa_api_test\\Sample.STD";
+    // // hide_staad_window_by_title();
+    // let exit_code = run_staad_background(system_path, std_path);
+    // println!("Process completed with exit code: {:#?}", exit_code);
+
+    let system_path =
+        "C:\\Program Files\\Bentley\\Engineering\\STAAD.Pro 2025\\STAAD\\Bentley.Staad.exe"
+            .to_string();
+    let std_path = "C:\\Users\\kms36\\Downloads\\staa_api_test\\Sample.STD".to_string();
+    let mut _openstaad = OpenStaad::new(system_path, std_path).map_err(|e| {
         error!("Failed to create OpenSTAAD instance: {}", e);
         e
     })?;
-    let _geometry = _openstaad.get_geometry()?;
+    // let mut _openstaad = OpenStaad::new_by_activated().map_err(|e| {
+    //     error!("Failed to create OpenSTAAD instance: {}", e);
+    //     e
+    // })?;
+    // let _geometry = _openstaad.get_geometry()?;
 
-    // unsafe {
-    //     let sa_nodes = safe_array_from_vec1d::<i32>(vec![1])?;
-    //     // let redo = safe_array_to_vec1d::<i32>(sa_nodes)?;
-    //     // println!("{:#?}", redo);
-    //     let variant_nodes = variant_with_ptr_from::<SafeArray<i32>>(sa_nodes);
-    //     let GetNoOfBeamsConnectedAtNode = invoke_method(
-    //         &_geometry.dispatch,
-    //         "GetNoOfBeamsConnectedAtNode",
-    //         &mut [variant_nodes],
-    //     )?;
-    //     info!(
-    //         "GetNoOfBeamsConnectedAtNode: {:#?}",
-    //         VariantToInt32(&GetNoOfBeamsConnectedAtNode as *const VARIANT)
-    //     );
-    // }
-
-    let openstaad = Staad::OpenStaad(Arc::new(_openstaad));
+    let openstaad = Staad::OpenStaad(_openstaad);
     match test_openstaad(&openstaad) {
         Ok(_) => info!("✓ Basic connection test passed"),
         Err(e) => {
             error!("✗ Basic connection test failed: {}", e);
+            drop(openstaad);
             return Err(e);
         }
     }
+    drop(openstaad);
 
-    let geometry = Staad::Geometry(Arc::new(_geometry));
-    match test_geometry(&geometry) {
-        Ok(_) => info!("✓ Geometry test passed"),
-        Err(e) => {
-            error!("✗ Geometry test failed: {}", e);
-            return Err(e);
-        }
-    }
+    // let geometry = Staad::Geometry(Arc::new(_geometry));
+    // match test_geometry(&geometry) {
+    //     Ok(_) => info!("✓ Geometry test passed"),
+    //     Err(e) => {
+    //         error!("✗ Geometry test failed: {}", e);
+    //         return Err(e);
+    //     }
+    // }
 
     Ok(())
 }
@@ -68,64 +77,73 @@ fn main() -> Result<()> {
 fn test_openstaad(instance: &Staad) -> Result<()> {
     let GetProcessId = execute_method(&instance, "GetProcessId", &[])?;
     info!("GetProcessId: {:#?}", GetProcessId);
+
+    // let OpenSTAADFile = execute_method(
+    //     &instance,
+    //     "OpenSTAADFile",
+    //     &["C:\\Users\\kms36\\Downloads\\staa_api_test\\Sample.STD"
+    //         .to_string()
+    //         .into()],
+    // )?;
+    // info!("OpenSTAADFile: {:#?}", OpenSTAADFile);
     Ok(())
 }
 
-/// Test basic COM connection and interface access
-fn test_geometry(instance: &Staad) -> Result<()> {
-    // let AddNode = execute_method(
-    //     &instance,
-    //     "AddNode",
-    //     &[10566.979.into(), 103.650.into(), (-9475.481).into()],
-    // )?;
-    // info!("AddNode: {:#?}", AddNode);
-    // let AddMultipleNodes = execute_method(
-    //     &instance,
-    //     "AddMultipleNodes",
-    //     &[vec![
-    //         vec![10567.979, 103.650, (-9475.481)],
-    //         vec![10568.979, 103.650, (-9475.481)],
-    //         vec![10569.979, 103.650, (-9475.481)],
-    //     ]
-    //     .into()],
-    // )?;
-    // info!("AddMultipleNodes: {:#?}", AddMultipleNodes);
-    let GetNodeCount = execute_method(&instance, "GetNodeCount", &[])?;
-    info!("GetNodeCount: {:#?}", GetNodeCount);
-    let GetNodeDistance = execute_method(
-        &instance,
-        "GetNodeDistance",
-        &[1, 2].map(|x| x.into()).as_slice(),
-    )?;
-    info!("GetNodeDistance: {:#?}", GetNodeDistance);
-    let GetNodeCoordinates = execute_method(&instance, "GetNodeCoordinates", &[1.into()])?;
-    info!("GetNodeCoordinates: {:#?}", GetNodeCoordinates);
-    let GetNodeList = execute_method(&instance, "GetNodeList", &[])?;
-    info!("GetNodeList: {:#?}", GetNodeList);
-    let GetNodeIncidence_CIS2 = execute_method(&instance, "GetNodeIncidence_CIS2", &[1.into()])?;
-    info!("GetNodeIncidence_CIS2: {:#?}", GetNodeIncidence_CIS2);
+// /// Test basic COM connection and interface access
+// fn test_geometry(instance: &Staad) -> Result<()> {
+//     // let AddNode = execute_method(
+//     //     &instance,
+//     //     "AddNode",
+//     //     &[10566.979.into(), 103.650.into(), (-9475.481).into()],
+//     // )?;
+//     // info!("AddNode: {:#?}", AddNode);
+//     // let AddMultipleNodes = execute_method(
+//     //     &instance,
+//     //     "AddMultipleNodes",
+//     //     &[vec![
+//     //         vec![10567.979, 103.650, (-9475.481)],
+//     //         vec![10568.979, 103.650, (-9475.481)],
+//     //         vec![10569.979, 103.650, (-9475.481)],
+//     //     ]
+//     //     .into()],
+//     // )?;
+//     // info!("AddMultipleNodes: {:#?}", AddMultipleNodes);
+//     let GetNodeCount = execute_method(&instance, "GetNodeCount", &[])?;
+//     info!("GetNodeCount: {:#?}", GetNodeCount);
+//     let GetNodeDistance = execute_method(
+//         &instance,
+//         "GetNodeDistance",
+//         &[1, 2].map(|x| x.into()).as_slice(),
+//     )?;
+//     info!("GetNodeDistance: {:#?}", GetNodeDistance);
+//     let GetNodeCoordinates = execute_method(&instance, "GetNodeCoordinates", &[1.into()])?;
+//     info!("GetNodeCoordinates: {:#?}", GetNodeCoordinates);
+//     let GetNodeList = execute_method(&instance, "GetNodeList", &[])?;
+//     info!("GetNodeList: {:#?}", GetNodeList);
+//     let GetNodeIncidence_CIS2 = execute_method(&instance, "GetNodeIncidence_CIS2", &[1.into()])?;
+//     info!("GetNodeIncidence_CIS2: {:#?}", GetNodeIncidence_CIS2);
 
-    let GetNoOfBeamsConnectedAtNode =
-        execute_method(&instance, "GetNoOfBeamsConnectedAtNode", &[1.into()])?;
-    info!(
-        "GetNoOfBeamsConnectedAtNode: {:#?}",
-        GetNoOfBeamsConnectedAtNode
-    );
-    let GetBeamsConnectedAtNode =
-        execute_method(&instance, "GetBeamsConnectedAtNode", &[1.into()])?;
-    info!("GetBeamsConnectedAtNode: {:#?}", GetBeamsConnectedAtNode);
-    let IntersectBeams = execute_method(
-        &instance,
-        "IntersectBeams",
-        &[1.into(), vec![1, 2, 3].into(), 0.1.into()],
-    )?;
-    info!("IntersectBeams: {:#?}", IntersectBeams);
-    let GetGroupCount = execute_method(&instance, "GetGroupCount", &[2.into()])?;
-    info!("GetGroupCount: {:#?}", GetGroupCount);
-    let GetGroupNames = execute_method(&instance, "GetGroupNames", &[2.into()])?;
-    info!("GetGroupNames: {:#?}", GetGroupNames);
-    Ok(())
-}
+//     let GetNoOfBeamsConnectedAtNode =
+//         execute_method(&instance, "GetNoOfBeamsConnectedAtNode", &[1.into()])?;
+//     info!(
+//         "GetNoOfBeamsConnectedAtNode: {:#?}",
+//         GetNoOfBeamsConnectedAtNode
+//     );
+//     let GetBeamsConnectedAtNode =
+//         execute_method(&instance, "GetBeamsConnectedAtNode", &[1.into()])?;
+//     info!("GetBeamsConnectedAtNode: {:#?}", GetBeamsConnectedAtNode);
+//     let IntersectBeams = execute_method(
+//         &instance,
+//         "IntersectBeams",
+//         &[1.into(), vec![1, 2, 3].into(), 0.1.into()],
+//     )?;
+//     info!("IntersectBeams: {:#?}", IntersectBeams);
+//     let GetGroupCount = execute_method(&instance, "GetGroupCount", &[2.into()])?;
+//     info!("GetGroupCount: {:#?}", GetGroupCount);
+//     let GetGroupNames = execute_method(&instance, "GetGroupNames", &[2.into()])?;
+//     info!("GetGroupNames: {:#?}", GetGroupNames);
+//     Ok(())
+// }
 
 /// Setup file logging to save all logs to a timestamped txt file
 fn setup_file_logging() -> Result<()> {

@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use windows::Win32::System::Com::IDispatch;
 
 use crate::tools::value_types::{InType as itype, MethodSignature, OutType as otype};
+use std::fmt::{Debug, Formatter, Result};
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Support {
     pub id: String,
     #[serde(skip)]
@@ -12,7 +13,11 @@ pub struct Support {
     #[serde(skip)]
     pub methods: HashMap<String, MethodSignature>,
 }
-
+impl Debug for Support {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "Support Struct")
+    }
+}
 impl Support {
     pub fn new(dispatch: IDispatch) -> Self {
         let mut methods = HashMap::new();

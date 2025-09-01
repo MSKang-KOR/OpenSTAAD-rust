@@ -3,14 +3,20 @@ use std::collections::HashMap;
 use windows::Win32::System::Com::IDispatch;
 
 use crate::tools::value_types::{InType as itype, MethodSignature, OutType as otype};
+use std::fmt::{Debug, Formatter, Result};
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Command {
     pub id: String,
     #[serde(skip)]
     pub dispatch: IDispatch,
     #[serde(skip)]
     pub methods: HashMap<String, MethodSignature>,
+}
+impl Debug for Command {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "")
+    }
 }
 
 impl Command {

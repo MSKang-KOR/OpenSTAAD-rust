@@ -3,14 +3,20 @@ use std::collections::HashMap;
 use windows::Win32::System::Com::IDispatch;
 
 use crate::tools::value_types::{InType as itype, MethodSignature, OutType as otype};
+use std::fmt::{Debug, Formatter, Result};
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Output {
     pub id: String,
     #[serde(skip)]
     pub dispatch: IDispatch,
     #[serde(skip)]
     pub methods: HashMap<String, MethodSignature>,
+}
+impl Debug for Output {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "Output Struct")
+    }
 }
 
 impl Output {
@@ -606,8 +612,32 @@ impl Output {
         methods.insert(
             "GetMemberSteelDesignResults".to_string(),
             MethodSignature {
-                inputs: vec![itype::Int, itype::MutStr, itype::MutStr, itype::MutDouble, itype::MutDouble, itype::MutInt, itype::MutDouble, itype::MutStr, itype::MutStr, itype::MutVecDouble, itype::MutDouble],
-                outputs: vec![otype::Bool, otype::Index(1), otype::Index(2), otype::Index(3), otype::Index(4), otype::Index(5), otype::Index(6), otype::Index(7), otype::Index(8), otype::Index(9), otype::Index(10)],
+                inputs: vec![
+                    itype::Int,
+                    itype::MutStr,
+                    itype::MutStr,
+                    itype::MutDouble,
+                    itype::MutDouble,
+                    itype::MutInt,
+                    itype::MutDouble,
+                    itype::MutStr,
+                    itype::MutStr,
+                    itype::MutVecDouble,
+                    itype::MutDouble,
+                ],
+                outputs: vec![
+                    otype::Bool,
+                    otype::Index(1),
+                    otype::Index(2),
+                    otype::Index(3),
+                    otype::Index(4),
+                    otype::Index(5),
+                    otype::Index(6),
+                    otype::Index(7),
+                    otype::Index(8),
+                    otype::Index(9),
+                    otype::Index(10),
+                ],
             },
         );
         methods.insert(
@@ -627,8 +657,27 @@ impl Output {
         methods.insert(
             "GetMultipleMemberSteelDesignResults".to_string(),
             MethodSignature {
-                inputs: vec![itype::Str, itype::Int, itype::MutStr, itype::MutStr, itype::MutDouble, itype::MutDouble, itype::MutInt, itype::MutStr, itype::MutStr],
-                outputs: vec![otype::Bool, otype::Index(2), otype::Index(3), otype::Index(4), otype::Index(5), otype::Index(6), otype::Index(7), otype::Index(8)],
+                inputs: vec![
+                    itype::Str,
+                    itype::Int,
+                    itype::MutStr,
+                    itype::MutStr,
+                    itype::MutDouble,
+                    itype::MutDouble,
+                    itype::MutInt,
+                    itype::MutStr,
+                    itype::MutStr,
+                ],
+                outputs: vec![
+                    otype::Bool,
+                    otype::Index(2),
+                    otype::Index(3),
+                    otype::Index(4),
+                    otype::Index(5),
+                    otype::Index(6),
+                    otype::Index(7),
+                    otype::Index(8),
+                ],
             },
         );
         methods.insert(

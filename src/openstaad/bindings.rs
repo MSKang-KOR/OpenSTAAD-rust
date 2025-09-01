@@ -17,7 +17,7 @@ use crate::{
 
 #[derive(Debug)]
 pub enum Staad {
-    OpenStaad(Arc<OpenStaad>),
+    OpenStaad(OpenStaad),
     Geometry(Arc<Geometry>),
     Command(Arc<Command>),
     Design(Arc<Design>),
