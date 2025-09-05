@@ -1,13 +1,11 @@
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use log::{info, warn};
 use serde::Serialize;
 use windows::Win32::System::Com::{
-    CLSCTX_LOCAL_SERVER, CLSIDFromProgID, COINIT_SPEED_OVER_MEMORY, CoCreateInstance,
-    CoUninitialize, GetRunningObjectTable, IMoniker,
+    COINIT_SPEED_OVER_MEMORY, CoUninitialize, GetRunningObjectTable, IMoniker,
 };
 use windows::Win32::System::Ole::GetActiveObject;
 use windows::Win32::System::Variant::VariantToInt32;
-use windows::Win32::UI::WindowsAndMessaging::{self, SW_HIDE, SWP_HIDEWINDOW};
 use windows::{
     Win32::System::{
         Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, IDispatch},
@@ -32,13 +30,18 @@ use std::mem;
 use std::os::windows::process::CommandExt;
 use std::ptr;
 use std::{
-    collections::HashMap, ffi::OsStr, os::windows::ffi::OsStrExt, path::Path, sync::Arc, thread,
+    collections::{HashMap, HashSet},
+    ffi::OsStr,
+    os::windows::ffi::OsStrExt,
+    path::Path,
+    sync::Arc,
+    thread,
     time::Duration,
 };
 use windows::Win32::Foundation::{CloseHandle, FALSE};
 use windows::Win32::System::Threading::STARTF_USESHOWWINDOW;
 use windows::Win32::System::Threading::{
-    CREATE_NO_WINDOW, CreateProcessW, GetExitCodeProcess, PROCESS_INFORMATION, STARTUPINFOW,
+    CREATE_NO_WINDOW, CreateProcessW, GetExitCodeProcess, PROCESS_INFORMATION,
 };
 
 /// A wrapper struct to manage the OpenSTAAD application instance.
@@ -63,7 +66,7 @@ impl OpenStaad {
     /// Connects to OpenSTAAD and initializes the application.
     pub fn new(system_path: String, std_path: String) -> Result<Self> {
         // let dispatch = get_active_object(system_path, std_path)?;
-        let (id, dispatch) = initialize(system_path)?;
+        let (id, dispatch) = initialize(system_path, std_path)?;
 
         // let prog_id = HSTRING::from("StaadPro.OpenSTAAD");
 
@@ -96,7 +99,7 @@ impl OpenStaad {
         //         .map_err(|e| anyhow!("CoCreateInstance failed: {}", e))?
         // };
 
-        let mut methods = HashMap::new();
+        let mut methods: HashMap<String, MethodSignature> = HashMap::new();
         let _ = set_methods(&mut methods);
 
         let instance = Self {
@@ -225,13 +228,6 @@ impl Drop for OpenStaad {
 }
 
 fn get_active_object() -> Result<IDispatch> {
-    info!("Initializing COM library...");
-    unsafe {
-        if CoInitializeEx(None, COINIT_APARTMENTTHREADED).is_err() {
-            return Err(anyhow!("CoInitializeEx failed"));
-        }
-    }
-
     info!("Creating OpenSTAAD instance...");
     let clsid = unsafe {
         // ProgID for OpenSTAAD, as per the documentation.
@@ -270,48 +266,58 @@ fn get_active_object() -> Result<IDispatch> {
             return Ok(dispatch);
         }
         _ => {
-            unsafe {
-                CoUninitialize();
-            }
             bail!("Fail to cast IUnknown to IDispatch.")
         }
     }
 }
 
-fn initialize(system_path: String) -> Result<(u32, IDispatch)> {
-    let pid = run_no_window(system_path)?;
-    info!("Started STAAD.Pro process with PID: {}", pid);
-
+fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)> {
+    // let pid = run_no_window(system_path)?;
+    // info!("Started STAAD.Pro process with PID: {}", pid);
     unsafe {
-        // COM 초기화
-        let com_result = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-        if com_result.is_err() {
-            warn!(
-                "COM already initialized or initialization failed: {:?}",
-                com_result
-            );
-        }
-        // 프로세스가 완전히 시작될 때까지 잠시 대기
-        let mut attempts = 0;
-        let max_attempts = 5;
-        loop {
-            attempts += 1;
-            match find_staad_by_process_id(pid) {
-                Ok(dispatch) => {
-                    info!("Successfully connected to STAAD instance with PID: {}", pid);
-                    return Ok((pid, dispatch));
-                }
-                Err(e) => {
-                    if attempts > max_attempts {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+    }
+    if !std::path::Path::new(&system_path).exists() {
+        bail!("파일이 존재하지 않습니다: {}", system_path);
+    }
+
+    let child = std::process::Command::new(&system_path)
+        .args(&[std_path.as_str(), "/s"])
+        .spawn()?;
+    let _pid = child.id();
+
+    // 프로세스가 완전히 시작될 때까지 초기 대기
+    info!("Waiting for STAAD.Pro process to initialize...");
+    thread::sleep(Duration::from_millis(5000));
+
+    let mut attempts = 0;
+    let max_attempts = 5;
+    loop {
+        attempts += 1;
+
+        // 먼저 ROT 방식 시도
+        match find_staad_by_process_id(_pid) {
+            Ok(dispatch) => {
+                info!("Success to connect Staad.Pro with pid {} via ROT", _pid);
+                return Ok((_pid, dispatch));
+            }
+            Err(e) => {
+                if attempts > max_attempts {
+                    let _ = std::process::Command::new("taskkill")
+                        .args(&["/PID", _pid.to_string().as_str()])
+                        .spawn()?;
+                    unsafe {
                         let _ = CoUninitialize();
-                        bail!("Failed to find STAAD by PID {}: {}", pid, e);
                     }
-                    warn!(
-                        "Attempt to initialize with {}(pid) {} failed: {}",
-                        pid, attempts, e
+                    bail!(
+                        "Staas.Pro가 정상적으로 실행되지 않았거나 .STD파일을 열 수 없어 종료합니다."
                     );
-                    thread::sleep(Duration::from_millis(3000));
                 }
+                info!(
+                    "ROT approach failed: {}. Trying CoCreateInstance approach...",
+                    e
+                );
+                thread::sleep(Duration::from_millis(3000));
             }
         }
     }
@@ -319,105 +325,62 @@ fn initialize(system_path: String) -> Result<(u32, IDispatch)> {
 
 fn find_staad_by_process_id(target_pid: u32) -> Result<IDispatch> {
     unsafe {
-        let rot = GetRunningObjectTable(0)?;
-        let enum_moniker = rot.EnumRunning()?;
+        let rot = GetRunningObjectTable(0).context("ROT 가져오기 실패")?;
 
+        // ROT의 모든 객체를 열거
+        let enum_moniker = rot.EnumRunning().context("ROT 열거 실패")?;
         loop {
             let mut monikers: [Option<IMoniker>; 1] = [None];
             let mut fetched = 0u32;
 
+            // 다음 moniker 가져오기
             let hr = enum_moniker.Next(&mut monikers, Some(&mut fetched));
             if hr.is_err() || fetched == 0 {
                 break;
             }
-
             if let Some(moniker) = &monikers[0] {
                 if let Ok(unknown) = rot.GetObject(moniker) {
+                    // IDispatch로 캐스트 시도
                     if let Ok(dispatch) = unknown.cast::<IDispatch>() {
-                        if is_staad_object_with_pid(&dispatch, target_pid)? {
-                            info!("Found STAAD object with PID: {}", target_pid);
+                        // 이 객체가 STAAD인지 확인 (GetProcessId 메서드 존재 여부로 판단)
+                        if let Ok(true) = is_staad_object_with_pid(&dispatch, target_pid) {
+                            info!(
+                                "대상 PID {}와 일치하는 STAAD 인스턴스를 찾았습니다",
+                                target_pid
+                            );
                             return Ok(dispatch);
                         }
                     }
-                }
-            }
-        }
-
-        bail!("No STAAD instance found with PID: {}", target_pid)
-    }
-}
-
-fn is_staad_object_with_pid(dispatch: &IDispatch, target_pid: u32) -> Result<bool> {
-    unsafe {
-        match invoke_method(dispatch, "GetProcessId", &mut []) {
-            Ok(var) => {
-                if let Ok(current_pid) = VariantToInt32(&var as *const VARIANT) {
-                    Ok(current_pid as u32 == target_pid)
                 } else {
-                    Ok(false)
+                    info!("Failed to get object: {}", target_pid);
                 }
             }
-            Err(_) => Ok(false),
         }
+        Err(anyhow!(
+            "프로세스 ID {}에 해당하는 STAAD 인스턴스를 찾을 수 없습니다",
+            target_pid
+        ))
     }
 }
 
-fn run_no_window(exe_path: String) -> Result<u32> {
-    // 명령줄 생성
-    let command_line = format!("\"{}\"", exe_path.as_str());
-    let mut command_line_wide: Vec<u16> = OsStr::new(&command_line)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-
-    // STARTUPINFO 구조체 초기화
-    let mut startup_info: STARTUPINFOW = unsafe { mem::zeroed() };
-    startup_info.cb = mem::size_of::<STARTUPINFOW>() as u32;
-    startup_info.dwFlags = STARTF_USESHOWWINDOW;
-    // startup_info.wShowWindow = SW_HIDE as u16; // 창 숨김
-
-    // PROCESS_INFORMATION 구조체 초기화
-    let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
-
-    // CreateProcessW 호출
-    let result = unsafe {
-        CreateProcessW(
-            None,                                        // lpApplicationName
-            Some(PWSTR(command_line_wide.as_mut_ptr())), // lpCommandLine
-            None,                                        // lpProcessAttributes
-            None,                                        // lpThreadAttributes
-            false,                                       // bInheritHandles
-            CREATE_NO_WINDOW,                            // dwCreationFlags
-            None,                                        // lpEnvironment
-            None,                                        // lpCurrentDirectory
-            &mut startup_info,                           // lpStartupInfo
-            &mut process_info,                           // lpProcessInformation
-        )
-    };
-
-    if result.is_err() {
-        bail!("CreateProcessW failed");
-    }
-
-    println!(
-        "Process created successfully. PID: {}",
-        process_info.dwProcessId
-    );
-
-    // 핸들 정리 (대기하지 않음)
+fn is_staad_object_with_pid(_dispatch: &IDispatch, _target_pid: u32) -> Result<bool> {
     unsafe {
-        // WaitForSingleObject(process_info.hProcess, INFINITE);
-
-        // // 종료 코드 가져오기
-        // let mut exit_code: u32 = 0;
-        // GetExitCodeProcess(process_info.hProcess, &mut exit_code);
-
-        // 핸들 정리
-        let _ = CloseHandle(process_info.hProcess);
-        let _ = CloseHandle(process_info.hThread);
-
-        // Ok(exit_code)
-        Ok(process_info.dwProcessId)
+        let current_pid_result = invoke_method(_dispatch, "GetProcessId", &mut []);
+        match current_pid_result {
+            Ok(var) => {
+                if let Ok(cur_pid) = VariantToInt32(&var as *const VARIANT) {
+                    info!("TargetPid: {}, CurrentPid: {}", _target_pid, cur_pid);
+                    return Ok(cur_pid as u32 == _target_pid);
+                } else {
+                    warn!("PID를 추출할 수 없는 VARIANT: {:#?}", var);
+                    return Ok(false);
+                }
+            }
+            Err(_) => {
+                // GetProcessId 메서드가 없는 객체는 STAAD 객체가 아님
+                return Ok(false);
+            }
+        }
     }
 }
 
@@ -733,3 +696,70 @@ fn set_methods(store: &mut HashMap<String, MethodSignature>) {
         },
     );
 }
+
+// fn run_no_window(exe_path: String) -> Result<u32> {
+//     // 명령줄 생성
+//     let command_line = format!("\"{}\"", exe_path.as_str());
+//     let mut command_line_wide: Vec<u16> = OsStr::new(&command_line)
+//         .encode_wide()
+//         .chain(std::iter::once(0))
+//         .collect();
+
+//     // STARTUPINFO 구조체 초기화
+//     let mut startup_info: STARTUPINFOW = unsafe { mem::zeroed() };
+//     startup_info.cb = mem::size_of::<STARTUPINFOW>() as u32;
+//     startup_info.dwFlags = STARTF_USESHOWWINDOW;
+//     // startup_info.wShowWindow = SW_HIDE as u16; // 창 숨김
+
+//     // PROCESS_INFORMATION 구조체 초기화
+//     let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
+
+//     // CreateProcessW 호출
+//     let result = unsafe {
+//         CreateProcessW(
+//             None,                                        // lpApplicationName
+//             Some(PWSTR(command_line_wide.as_mut_ptr())), // lpCommandLine
+//             None,                                        // lpProcessAttributes
+//             None,                                        // lpThreadAttributes
+//             false,                                       // bInheritHandles
+//             CREATE_NO_WINDOW,                            // dwCreationFlags
+//             None,                                        // lpEnvironment
+//             None,                                        // lpCurrentDirectory
+//             &mut startup_info,                           // lpStartupInfo
+//             &mut process_info,                           // lpProcessInformation
+//         )
+//     };
+
+//     if result.is_err() {
+//         bail!("CreateProcessW failed");
+//     }
+
+//     let pid = process_info.dwProcessId;
+//     info!("Process created successfully. PID: {}", pid);
+
+//     // 프로세스가 실제로 시작되었는지 확인
+//     unsafe {
+//         // 짧은 시간 대기 후 프로세스 상태 확인
+//         thread::sleep(Duration::from_millis(500));
+
+//         let mut exit_code: u32 = 0;
+//         let exit_result = GetExitCodeProcess(process_info.hProcess, &mut exit_code);
+
+//         if exit_result.is_ok() {
+//             if exit_code == 259 {
+//                 // STILL_ACTIVE
+//                 info!("Process {} is running successfully", pid);
+//             } else {
+//                 warn!("Process {} exited with code: {}", pid, exit_code);
+//             }
+//         } else {
+//             warn!("Failed to check process status for PID: {}", pid);
+//         }
+
+//         // 핸들 정리
+//         let _ = CloseHandle(process_info.hProcess);
+//         let _ = CloseHandle(process_info.hThread);
+
+//         Ok(pid)
+//     }
+// }
