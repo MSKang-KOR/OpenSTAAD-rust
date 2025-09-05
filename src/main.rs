@@ -1,7 +1,7 @@
+use anyhow::{Result, anyhow};
 use chrono::Local;
 use log::{error, info, warn};
 use openstaad_rust::{
-    Result,
     openstaad::{app::OpenStaad, bindings::Staad, execute::execute_method},
     tools::{
         InType, SafeArray, invoke_method, safe_array_from_vec1d, safe_array_to_vec1d,
@@ -10,17 +10,8 @@ use openstaad_rust::{
 };
 use std::{ffi::OsStr, fs::OpenOptions, os::windows::ffi::OsStrExt, sync::Arc};
 use windows::Win32::System::{
-    Com::CoUninitialize,
+    Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize},
     Variant::{VARIANT, VariantToInt32, VariantToStringAlloc},
-};
-use windows_core::BSTR;
-
-use std::mem;
-use std::ptr;
-use windows::Win32::Foundation::{CloseHandle, FALSE};
-use windows::Win32::System::Threading::{
-    CREATE_NO_WINDOW, DETACHED_PROCESS, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION,
-    STARTUPINFOW, WaitForSingleObject,
 };
 
 fn main() -> Result<()> {
@@ -59,7 +50,6 @@ fn main() -> Result<()> {
             return Err(e);
         }
     }
-    drop(openstaad);
 
     // let geometry = Staad::Geometry(Arc::new(_geometry));
     // match test_geometry(&geometry) {
@@ -152,7 +142,7 @@ fn setup_file_logging() -> Result<()> {
 
     // // Create timestamped log filename
     // let timestamp = Local::now().format("%Y%m%d_%H%M%S");
-    let log_filename = format!("log_.txt");
+    let log_filename = format!("log.log");
 
     // Create or open log file
     let log_file = OpenOptions::new()

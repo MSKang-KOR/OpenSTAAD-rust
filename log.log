@@ -1,0 +1,26 @@
+[2025-09-02 13:47:23.966] [INFO] [src\main.rs:21] Starting Staad.Pro COM connection test...
+[2025-09-02 13:47:23.973] [INFO] [src\openstaad\app.rs:290] Waiting for STAAD.Pro process to initialize...
+[2025-09-02 13:47:28.984] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:28.985] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:28.985] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:28.992] [INFO] [src\openstaad\app.rs:313] ROT approach failed: 프로세스 ID 22304에 해당하는 STAAD 인스턴스를 찾을 수 없습니다. Trying CoCreateInstance approach...
+[2025-09-02 13:47:31.996] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:31.997] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:31.998] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:32.003] [INFO] [src\openstaad\app.rs:313] ROT approach failed: 프로세스 ID 22304에 해당하는 STAAD 인스턴스를 찾을 수 없습니다. Trying CoCreateInstance approach...
+[2025-09-02 13:47:35.008] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:35.009] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:35.011] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:35.019] [INFO] [src\openstaad\app.rs:313] ROT approach failed: 프로세스 ID 22304에 해당하는 STAAD 인스턴스를 찾을 수 없습니다. Trying CoCreateInstance approach...
+[2025-09-02 13:47:38.025] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:38.026] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:38.027] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:38.037] [INFO] [src\openstaad\app.rs:313] ROT approach failed: 프로세스 ID 22304에 해당하는 STAAD 인스턴스를 찾을 수 없습니다. Trying CoCreateInstance approach...
+[2025-09-02 13:47:41.042] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:41.042] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:41.043] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:41.050] [INFO] [src\openstaad\app.rs:313] ROT approach failed: 프로세스 ID 22304에 해당하는 STAAD 인스턴스를 찾을 수 없습니다. Trying CoCreateInstance approach...
+[2025-09-02 13:47:44.053] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:44.054] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:44.055] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
+[2025-09-02 13:47:44.067] [ERROR] [src\main.rs:35] Failed to create OpenSTAAD instance: Staas.Pro가 정상적으로 실행되지 않았거나 .STD파일을 열 수 없어 종료합니다.
