@@ -46,8 +46,6 @@ pub unsafe fn invoke_method(
                 None,
             )
             .map_err(|e| anyhow!("Invoke '{}' method failed: {}", method, e))?;
-
-        info!("Successfully accessed '{}' method", method);
     };
     Ok(result_variant)
 }
@@ -86,8 +84,6 @@ pub unsafe fn invoke_property(dispatch: &IDispatch, property: &str) -> Result<ID
                 None,
             )
             .map_err(|e| anyhow!("Invoke '{}' property failed: {}", property, e))?;
-
-        info!("Successfully accessed '{}' property", property);
     };
 
     match IDispatch::try_from(&result_variant) {
