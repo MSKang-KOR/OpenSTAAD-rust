@@ -4,25 +4,31 @@ use log::{error, info, warn};
 use openstaad_rust::{
     openstaad::{app::OpenStaad, bindings::Staad, execute::execute_method},
     tools::{
-        InType, SafeArray, invoke_method, safe_array_from_vec1d, safe_array_to_vec1d,
-        variant_with_ptr_from,
+        InType, SafeArray, SafeArrayP, invoke_method, safe_array_from_vec1d, safe_array_to_vec1d,
+        variant_with_ptr_from, variant_with_ptr_to,
     },
 };
-use std::{ffi::OsStr, fs::OpenOptions, os::windows::ffi::OsStrExt, sync::Arc};
+use std::{
+    ffi::{OsStr, c_void},
+    fs::OpenOptions,
+    os::windows::ffi::OsStrExt,
+    sync::Arc,
+};
 use windows::Win32::System::{
-    Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize},
-    Variant::{VARIANT, VariantToInt32, VariantToStringAlloc},
+    Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize, SAFEARRAY},
+    Ole::{SafeArrayCreateVector, SafeArrayGetElement},
+    Variant::{
+        VARIANT, VT_I4, VT_R4, VT_R8, VariantToBoolean, VariantToInt32, VariantToStringAlloc,
+    },
 };
 
 fn main() -> Result<()> {
     // Initialize file logging with timestamp
     setup_file_logging()?;
 
-    info!("Starting Staad.Pro COM connection test...");
-
     // let system_path =
     //     "C:\\Program Files\\Bentley\\Engineering\\STAAD.Pro 2025\\STAAD\\Bentley.Staad.exe";
-    // let std_path = "C:\\Users\\kms36\\Downloads\\staa_api_test\\Sample.STD";
+    // let std_path = "C:\\Users\\kms36\\Downloads\\staa_api_test\\sample.STD";
     // // hide_staad_window_by_title();
     // let exit_code = run_staad_background(system_path, std_path);
     // println!("Process completed with exit code: {:#?}", exit_code);
@@ -30,19 +36,20 @@ fn main() -> Result<()> {
     let system_path =
         "C:\\Program Files\\Bentley\\Engineering\\STAAD.Pro 2025\\STAAD\\Bentley.Staad.exe"
             .to_string();
-    let std_path = "C:\\Users\\kms36\\Downloads\\staa_api_test\\Sample.STD".to_string();
-    let mut _openstaad = OpenStaad::new(system_path, std_path).map_err(|e| {
-        error!("Failed to create OpenSTAAD instance: {}", e);
-        e
-    })?;
-    // let mut _openstaad = OpenStaad::new_by_activated().map_err(|e| {
+    let std_path = "C:\\Users\\kms36\\Downloads\\staa_api_test\\sample.STD";
+    // let mut _openstaad = OpenStaad::new(system_path, std_path.to_string()).map_err(|e| {
     //     error!("Failed to create OpenSTAAD instance: {}", e);
     //     e
     // })?;
+    let mut _openstaad = OpenStaad::new_by_activated().map_err(|e| {
+        error!("Failed to create OpenSTAAD instance: {}", e);
+        e
+    })?;
+    let _output = _openstaad.get_output()?;
     // let _geometry = _openstaad.get_geometry()?;
 
     let openstaad = Staad::OpenStaad(_openstaad);
-    match test_openstaad(&openstaad) {
+    match test_openstaad(&openstaad, std_path.to_string()) {
         Ok(_) => info!("✓ Basic connection test passed"),
         Err(e) => {
             error!("✗ Basic connection test failed: {}", e);
@@ -60,22 +67,52 @@ fn main() -> Result<()> {
     //     }
     // }
 
+    let output = Staad::Output(_output);
+    match test_output(&output) {
+        Ok(_) => info!("✓ Output test passed"),
+        Err(e) => {
+            error!("✗ Output test failed: {}", e);
+            return Err(e);
+        }
+    }
+
     Ok(())
 }
 
 /// Test basic COM connection and interface access
-fn test_openstaad(instance: &Staad) -> Result<()> {
+fn test_openstaad(instance: &Staad, std_path: String) -> Result<()> {
     let GetProcessId = execute_method(&instance, "GetProcessId", &[])?;
     info!("GetProcessId: {:#?}", GetProcessId);
+
+    let GetAnalysisStatus = execute_method(&instance, "GetAnalysisStatus", &[std_path.into()])?;
+    info!("GetAnalysisStatus: {:#?}", GetAnalysisStatus);
 
     // let OpenSTAADFile = execute_method(
     //     &instance,
     //     "OpenSTAADFile",
-    //     &["C:\\Users\\kms36\\Downloads\\staa_api_test\\Sample.STD"
+    //     &["C:\\Users\\kms36\\Downloads\\staa_api_test\\sample.STD"
     //         .to_string()
     //         .into()],
     // )?;
     // info!("OpenSTAADFile: {:#?}", OpenSTAADFile);
+    Ok(())
+}
+
+fn test_output(instance: &Staad) -> Result<()> {
+    let GetNodeDisplacements =
+        execute_method(&instance, "GetNodeDisplacements", &[1.into(), 351.into()])?;
+    info!("GetNodeDisplacements: {:#?}", GetNodeDisplacements);
+
+    let GetSupportReactions =
+        execute_method(&instance, "GetSupportReactions", &[1051.into(), 351.into()])?;
+    info!("GetSupportReactions: {:#?}", GetSupportReactions);
+
+    let GetMemberSteelDesignResults =
+        execute_method(&instance, "GetMemberSteelDesignResults", &[1.into()])?;
+    info!(
+        "GetMemberSteelDesignResults: {:#?}",
+        GetMemberSteelDesignResults
+    );
     Ok(())
 }
 

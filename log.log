@@ -1,26 +1,54 @@
-[2025-09-02 13:47:23.966] [INFO] [src\main.rs:21] Starting Staad.Pro COM connection test...
-[2025-09-02 13:47:23.973] [INFO] [src\openstaad\app.rs:290] Waiting for STAAD.Pro process to initialize...
-[2025-09-02 13:47:28.984] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:28.985] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:28.985] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:28.992] [INFO] [src\openstaad\app.rs:313] ROT approach failed: 프로세스 ID 22304에 해당하는 STAAD 인스턴스를 찾을 수 없습니다. Trying CoCreateInstance approach...
-[2025-09-02 13:47:31.996] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:31.997] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:31.998] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:32.003] [INFO] [src\openstaad\app.rs:313] ROT approach failed: 프로세스 ID 22304에 해당하는 STAAD 인스턴스를 찾을 수 없습니다. Trying CoCreateInstance approach...
-[2025-09-02 13:47:35.008] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:35.009] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:35.011] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:35.019] [INFO] [src\openstaad\app.rs:313] ROT approach failed: 프로세스 ID 22304에 해당하는 STAAD 인스턴스를 찾을 수 없습니다. Trying CoCreateInstance approach...
-[2025-09-02 13:47:38.025] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:38.026] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:38.027] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:38.037] [INFO] [src\openstaad\app.rs:313] ROT approach failed: 프로세스 ID 22304에 해당하는 STAAD 인스턴스를 찾을 수 없습니다. Trying CoCreateInstance approach...
-[2025-09-02 13:47:41.042] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:41.042] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:41.043] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:41.050] [INFO] [src\openstaad\app.rs:313] ROT approach failed: 프로세스 ID 22304에 해당하는 STAAD 인스턴스를 찾을 수 없습니다. Trying CoCreateInstance approach...
-[2025-09-02 13:47:44.053] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:44.054] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:44.055] [INFO] [src\openstaad\app.rs:369] TargetPid: 22304, CurrentPid: 18536
-[2025-09-02 13:47:44.067] [ERROR] [src\main.rs:35] Failed to create OpenSTAAD instance: Staas.Pro가 정상적으로 실행되지 않았거나 .STD파일을 열 수 없어 종료합니다.
+[2025-09-08 14:00:18.359] [INFO] [src\openstaad\app.rs:253] Creating OpenSTAAD instance...
+[2025-09-08 14:00:18.368] [INFO] [src\openstaad\app.rs:273] Success connect to active STAAD.Pro.
+[2025-09-08 14:00:18.370] [INFO] [src\openstaad\app.rs:291] OpenSTAAD instance created successfully.
+[2025-09-08 14:00:18.371] [INFO] [src\openstaad\app.rs:205] Accessing the 'Output' property...
+[2025-09-08 14:00:18.374] [INFO] [src\main.rs:85] GetProcessId: Number(12408)
+[2025-09-08 14:00:18.375] [INFO] [src\main.rs:88] GetAnalysisStatus: Array [
+    Number(3),
+    Number(390),
+    Number(0),
+    Number(211.3090057373047),
+]
+[2025-09-08 14:00:18.375] [INFO] [src\main.rs:53] ✓ Basic connection test passed
+[2025-09-08 14:00:18.376] [INFO] [src\main.rs:104] GetNodeDisplacements: Array [
+    Bool(false),
+    Array [
+        Number(0.0015508770011365414),
+        Number(-0.028747553005814552),
+        Number(0.432518869638443),
+        Number(0.0036416167858988047),
+        Number(8.370871910301503e-6),
+        Number(-0.000023329417672357522),
+    ],
+]
+[2025-09-08 14:00:18.377] [INFO] [src\main.rs:108] GetSupportReactions: Array [
+    Bool(false),
+    Array [
+        Number(0.020245254039764404),
+        Number(89.77133178710938),
+        Number(-7.007723808288574),
+        Number(-861.1990966796875),
+        Number(0.1739492416381836),
+        Number(0.0),
+    ],
+]
+[2025-09-08 14:00:18.378] [INFO] [src\main.rs:112] GetMemberSteelDesignResults: Array [
+    Bool(true),
+    String("360-05 L"),
+    String("PASS"),
+    Number(0.02231297222222222),
+    Number(0.8999999777777777),
+    Number(371),
+    Number(118.1091333333333),
+    String("Eq. H1-1b"),
+    String("IPE360"),
+    Array [
+        Number(0.08130618581864238),
+        Number(0.0),
+        Number(-29.429600917311745),
+    ],
+    Number(158.4077111111111),
+]
+[2025-09-08 14:00:18.379] [INFO] [src\main.rs:72] ✓ Output test passed
+[2025-09-08 14:00:18.379] [INFO] [src\openstaad\app.rs:233] Dropping OpenStaad instance with ID: 12408
+[2025-09-08 14:00:18.481] [INFO] [src\openstaad\app.rs:248] OpenStaad instance dropped

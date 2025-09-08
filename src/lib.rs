@@ -23,15 +23,15 @@ pub enum ThreadMessage {
         std_path: String,
         response_tx: oneshot::Sender<Result<Value, String>>,
     },
-    Invoke {
+    Instance {
+        id: String,
+        property: String,
+        response_tx: oneshot::Sender<Result<Value, String>>,
+    },
+    Method {
         id: String,
         method: String,
         params: Vec<Value>,
-        response_tx: oneshot::Sender<Result<Value, String>>,
-    },
-    GetInstance {
-        id: String,
-        property: String,
         response_tx: oneshot::Sender<Result<Value, String>>,
     },
     Shutdown,
@@ -70,21 +70,21 @@ pub fn start() -> Result<(), String> {
                     let result = handle_initialize(&mut local_store, path, std_path);
                     let _ = response_tx.send(result);
                 }
-                ThreadMessage::Invoke {
+                ThreadMessage::Method {
                     id,
                     method,
                     params,
                     response_tx,
                 } => {
-                    let result = handle_invoke(&local_store, id, method, params);
+                    let result = handle_method(&local_store, id, method, params);
                     let _ = response_tx.send(result);
                 }
-                ThreadMessage::GetInstance {
+                ThreadMessage::Instance {
                     id,
                     property,
                     response_tx,
                 } => {
-                    let result = handle_get_instance(&mut local_store, id, property);
+                    let result = handle_instance(&mut local_store, id, property);
                     let _ = response_tx.send(result);
                 }
                 ThreadMessage::Shutdown => {
@@ -104,11 +104,6 @@ pub fn start() -> Result<(), String> {
 
 // 스레드로 메시지 전송하는 함수
 pub async fn send(msg: String, data: Value) -> Result<Value, String> {
-    // let manager = THREAD_MANAGER.lock().map_err(|e| e.to_string())?;
-    // let sender = match &*manager {
-    //     Some(m) => &m.sender,
-    //     None => return Err("Thread not started. Call start_thread() first.".to_string()),
-    // };
     let sender = {
         let manager = THREAD_MANAGER.lock().map_err(|e| e.to_string())?;
         match &*manager {
@@ -129,26 +124,26 @@ pub async fn send(msg: String, data: Value) -> Result<Value, String> {
                 response_tx,
             }
         }
-        "invoke" => {
-            let id = data["id"].as_str().ok_or("Missing id")?.to_string();
-            let method = data["method"].as_str().ok_or("Missing method")?.to_string();
-            let params = data["params"].as_array().ok_or("Missing params")?.clone();
-            ThreadMessage::Invoke {
-                id,
-                method,
-                params,
-                response_tx,
-            }
-        }
-        "get_instance" => {
+        "instance" => {
             let id = data["id"].as_str().ok_or("Missing id")?.to_string();
             let instance_type = data["instance_type"]
                 .as_str()
                 .ok_or("Missing instance_type")?
                 .to_string();
-            ThreadMessage::GetInstance {
+            ThreadMessage::Instance {
                 id,
                 property: instance_type,
+                response_tx,
+            }
+        }
+        "method" => {
+            let id = data["id"].as_str().ok_or("Missing id")?.to_string();
+            let method = data["method"].as_str().ok_or("Missing method")?.to_string();
+            let params = data["params"].as_array().ok_or("Missing params")?.clone();
+            ThreadMessage::Method {
+                id,
+                method,
+                params,
                 response_tx,
             }
         }
@@ -208,7 +203,7 @@ pub fn handle_initialize(
     }
 }
 
-pub fn handle_get_instance(
+pub fn handle_instance(
     store: &mut HashMap<String, Staad>,
     id: String,
     instance_type: String,
@@ -337,7 +332,7 @@ pub fn handle_get_instance(
     }
 }
 
-pub fn handle_invoke(
+pub fn handle_method(
     store: &HashMap<String, Staad>,
     id: String,
     method: String,
@@ -345,7 +340,7 @@ pub fn handle_invoke(
 ) -> Result<Value, String> {
     let arc = store.get(&id);
     if let Some(instance) = arc {
-        let converted_params = convert_to_inputs_internal(instance, method.as_str(), &params)
+        let converted_params = convert_to_inputs(instance, method.as_str(), &params)
             .map_err(|e| e.to_string())?;
         return execute_method(instance, method.as_str(), converted_params.as_slice())
             .map_err(|e| e.to_string());
@@ -354,7 +349,7 @@ pub fn handle_invoke(
     }
 }
 
-fn convert_to_inputs_internal(
+fn convert_to_inputs(
     instance: &Staad,
     method: &str,
     params: &Vec<Value>,

@@ -3,24 +3,18 @@ use std::ffi::c_void;
 use anyhow::{Context, Result, anyhow, bail};
 use serde_json;
 use serde_json::Value;
-use windows::Win32::{
-    Foundation::VARIANT_BOOL,
-    System::{
-        Com::{IDispatch, SAFEARRAY},
-        Ole::{SafeArrayCreateVector, SafeArrayGetElement, SafeArrayGetLBound, SafeArrayGetUBound},
-        Variant::{
-            VARIANT, VT_BSTR, VT_I4, VT_R8, VariantToBoolean, VariantToDouble, VariantToInt32,
-            VariantToStringAlloc,
-        },
-    },
+use windows::Win32::System::{
+    Com::IDispatch,
+    Ole::{SafeArrayGetElement, SafeArrayGetLBound, SafeArrayGetUBound},
+    Variant::{VARIANT, VariantToBoolean, VariantToDouble, VariantToInt32, VariantToStringAlloc},
 };
 use windows_core::BSTR;
 
 use crate::{
-    openstaad::{app::OpenStaad, bindings::MemberSteelDgnParams},
+    openstaad::bindings::MemberSteelDgnParams,
     tools::{
-        invoke_method, safe_array_from_vec1d, safe_array_from_vec2d, variant::SafeArray,
-        variant_with_ptr_from, variant_with_ptr_to,
+        safe_array_from_vec1d, safe_array_from_vec2d, variant::SafeArray, variant_with_ptr_from,
+        variant_with_ptr_to,
     },
 };
 

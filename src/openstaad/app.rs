@@ -5,7 +5,7 @@ use windows::Win32::System::Com::{
     COINIT_SPEED_OVER_MEMORY, CoUninitialize, GetRunningObjectTable, IMoniker,
 };
 use windows::Win32::System::Ole::GetActiveObject;
-use windows::Win32::System::Variant::VariantToInt32;
+use windows::Win32::System::Variant::{VariantToBoolean, VariantToInt32};
 use windows::{
     Win32::System::{
         Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, IDispatch},
@@ -65,9 +65,9 @@ pub struct OpenStaad {
 impl OpenStaad {
     /// Connects to OpenSTAAD and initializes the application.
     pub fn new(system_path: String, std_path: String) -> Result<Self> {
-        // let dispatch = get_active_object(system_path, std_path)?;
         let (id, dispatch) = initialize(system_path, std_path)?;
-
+        // let id = 111;
+        // let dispatch = get_active_object()?;
         // let prog_id = HSTRING::from("StaadPro.OpenSTAAD");
 
         // let clsid = unsafe {
@@ -98,10 +98,32 @@ impl OpenStaad {
         //     CoCreateInstance(&clsid, None, CLSCTX_LOCAL_SERVER)
         //         .map_err(|e| anyhow!("CoCreateInstance failed: {}", e))?
         // };
+        // unsafe {
+        //     let mut attempts = 0;
+        //     let max_attempts = 5;
+        //     loop {
+        //         attempts += 1;
+        //         // let _geometry = invoke_property(&dispatch, "Geometry")?;
+        //         let geo_var = invoke_method(&dispatch, "Geometry", &mut [])?;
+        //         let _geometry = IDispatch::try_from(&geo_var)?;
+        //         let ttt = invoke_method(&_geometry, "GetLastNodeNo", &mut []);
+        //         match ttt {
+        //             Ok(var) => break,
+        //             Err(e) => {
+        //                 if attempts > max_attempts {
+        //                     info!("Fail to load std.");
+        //                     break;
+        //                 } else {
+        //                     info!("Waiting for loading std..: {}", e);
+        //                     thread::sleep(Duration::from_millis(3000));
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         let mut methods: HashMap<String, MethodSignature> = HashMap::new();
         let _ = set_methods(&mut methods);
-
         let instance = Self {
             dispatch,
             id,
@@ -150,7 +172,7 @@ impl OpenStaad {
     pub fn get_command(&mut self) -> Result<Arc<Command>> {
         info!("Accessing the 'Command' property...");
         if self.command.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Geometry")? };
+            let dispatch = unsafe { invoke_property(&self.dispatch, "Command")? };
             self.command = Some(Arc::new(Command::new(dispatch)));
         }
         Ok(Arc::clone(self.command.as_ref().unwrap()))
@@ -158,7 +180,7 @@ impl OpenStaad {
     pub fn get_design(&mut self) -> Result<Arc<Design>> {
         info!("Accessing the 'Design' property...");
         if self.design.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Geometry")? };
+            let dispatch = unsafe { invoke_property(&self.dispatch, "Design")? };
             self.design = Some(Arc::new(Design::new(dispatch)));
         }
         Ok(Arc::clone(self.design.as_ref().unwrap()))
@@ -174,7 +196,7 @@ impl OpenStaad {
     pub fn get_load(&mut self) -> Result<Arc<Load>> {
         info!("Accessing the 'Load' property...");
         if self.load.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Geometry")? };
+            let dispatch = unsafe { invoke_property(&self.dispatch, "Load")? };
             self.load = Some(Arc::new(Load::new(dispatch)));
         }
         Ok(Arc::clone(self.load.as_ref().unwrap()))
@@ -182,7 +204,7 @@ impl OpenStaad {
     pub fn get_output(&mut self) -> Result<Arc<Output>> {
         info!("Accessing the 'Output' property...");
         if self.output.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Geometry")? };
+            let dispatch = unsafe { invoke_property(&self.dispatch, "Output")? };
             self.output = Some(Arc::new(Output::new(dispatch)));
         }
         Ok(Arc::clone(self.output.as_ref().unwrap()))
@@ -190,7 +212,7 @@ impl OpenStaad {
     pub fn get_property(&mut self) -> Result<Arc<Property>> {
         info!("Accessing the 'Property' property...");
         if self.property.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Geometry")? };
+            let dispatch = unsafe { invoke_property(&self.dispatch, "Property")? };
             self.property = Some(Arc::new(Property::new(dispatch)));
         }
         Ok(Arc::clone(self.property.as_ref().unwrap()))
@@ -198,7 +220,7 @@ impl OpenStaad {
     pub fn get_support(&mut self) -> Result<Arc<Support>> {
         info!("Accessing the 'Support' property...");
         if self.support.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Geometry")? };
+            let dispatch = unsafe { invoke_property(&self.dispatch, "Support")? };
             self.support = Some(Arc::new(Support::new(dispatch)));
         }
         Ok(Arc::clone(self.support.as_ref().unwrap()))
@@ -229,6 +251,9 @@ impl Drop for OpenStaad {
 
 fn get_active_object() -> Result<IDispatch> {
     info!("Creating OpenSTAAD instance...");
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+    };
     let clsid = unsafe {
         // ProgID for OpenSTAAD, as per the documentation.
         let prog_id = HSTRING::from("StaadPro.OpenSTAAD");
@@ -249,7 +274,8 @@ fn get_active_object() -> Result<IDispatch> {
             }
             Err(e) => {
                 info!(
-                    "No active STAAD.Pro instance found. Attempting to launch STAAD.Pro in background..."
+                    "No active STAAD.Pro instance found. Attempting to launch STAAD.Pro in background: {}",
+                    e
                 );
             }
         };
@@ -286,7 +312,6 @@ fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)>
         .spawn()?;
     let _pid = child.id();
 
-    // 프로세스가 완전히 시작될 때까지 초기 대기
     info!("Waiting for STAAD.Pro process to initialize...");
     thread::sleep(Duration::from_millis(5000));
 
@@ -299,6 +324,7 @@ fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)>
         match find_staad_by_process_id(_pid) {
             Ok(dispatch) => {
                 info!("Success to connect Staad.Pro with pid {} via ROT", _pid);
+                let _ = waiting(&dispatch)?;
                 return Ok((_pid, dispatch));
             }
             Err(e) => {
@@ -310,7 +336,7 @@ fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)>
                         let _ = CoUninitialize();
                     }
                     bail!(
-                        "Staas.Pro가 정상적으로 실행되지 않았거나 .STD파일을 열 수 없어 종료합니다."
+                        "Staas.Pro가 정상적으로 실행되지 않았거나 STD 파일을 열 수 없어 종료합니다."
                     );
                 }
                 info!(
@@ -379,6 +405,39 @@ fn is_staad_object_with_pid(_dispatch: &IDispatch, _target_pid: u32) -> Result<b
             Err(_) => {
                 // GetProcessId 메서드가 없는 객체는 STAAD 객체가 아님
                 return Ok(false);
+            }
+        }
+    }
+}
+
+pub fn waiting(dispatch: &IDispatch) -> Result<bool> {
+    unsafe {
+        let mut attempts = 0;
+        let max_attempts = 10;
+        let delay = 3;
+        loop {
+            attempts += 1;
+            let result_var = invoke_method(dispatch, "GetCONNECTEDProjectInfo", &mut []);
+            match result_var {
+                Ok(var) => {
+                    if attempts > max_attempts {
+                        bail!("Fail to load std as max attempts");
+                    }
+                    let _bool = VariantToInt32(&var as *const VARIANT)?;
+                    if _bool == 1 {
+                        return Ok(true);
+                    }
+                    info!("Waiting for loading std..: {}", attempts);
+                    thread::sleep(Duration::from_millis(delay * 1000));
+                }
+                Err(e) => {
+                    if attempts > max_attempts {
+                        bail!("Fail to load std as max attempts: {}", e);
+                    } else {
+                        info!("Waiting for loading std with err...: {}", e);
+                        thread::sleep(Duration::from_millis(delay * 1000));
+                    }
+                }
             }
         }
     }

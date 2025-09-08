@@ -77,7 +77,7 @@ pub unsafe fn invoke_property(dispatch: &IDispatch, property: &str) -> Result<ID
                 dispid,
                 &GUID::default(),
                 0,
-                DISPATCH_PROPERTYGET,
+                DISPATCH_PROPERTYGET | DISPATCH_METHOD,
                 &disp_params,
                 Some(&mut result_variant),
                 None,
