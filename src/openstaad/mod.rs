@@ -1,6 +1,7 @@
 pub mod app;
 pub mod bindings;
 pub mod command;
+pub mod custom;
 pub mod design;
 pub mod execute;
 pub mod geometry;

@@ -2,12 +2,18 @@ use anyhow::{Result, anyhow};
 use chrono::Local;
 use log::{error, info, warn};
 use openstaad_rust::{
-    openstaad::{app::OpenStaad, bindings::Staad, execute::execute_method},
+    openstaad::{
+        app::OpenStaad,
+        bindings::Staad,
+        custom::{get_beams_table, get_nodes_table},
+        execute::execute_method,
+    },
     tools::{
         InType, SafeArray, SafeArrayP, invoke_method, safe_array_from_vec1d, safe_array_to_vec1d,
         variant_with_ptr_from, variant_with_ptr_to,
     },
 };
+use serde_json::Value;
 use std::{
     ffi::{OsStr, c_void},
     fs::OpenOptions,
@@ -26,13 +32,6 @@ fn main() -> Result<()> {
     // Initialize file logging with timestamp
     setup_file_logging()?;
 
-    // let system_path =
-    //     "C:\\Program Files\\Bentley\\Engineering\\STAAD.Pro 2025\\STAAD\\Bentley.Staad.exe";
-    // let std_path = "C:\\Users\\kms36\\Downloads\\staa_api_test\\sample.STD";
-    // // hide_staad_window_by_title();
-    // let exit_code = run_staad_background(system_path, std_path);
-    // println!("Process completed with exit code: {:#?}", exit_code);
-
     let system_path =
         "C:\\Program Files\\Bentley\\Engineering\\STAAD.Pro 2025\\STAAD\\Bentley.Staad.exe"
             .to_string();
@@ -46,35 +45,47 @@ fn main() -> Result<()> {
         e
     })?;
     let _output = _openstaad.get_output()?;
-    // let _geometry = _openstaad.get_geometry()?;
+    let _geometry = _openstaad.get_geometry()?;
 
-    let openstaad = Staad::OpenStaad(_openstaad);
-    match test_openstaad(&openstaad, std_path.to_string()) {
-        Ok(_) => info!("✓ Basic connection test passed"),
+    let mut openstaad = Staad::OpenStaad(_openstaad);
+    match get_nodes_table(&mut openstaad) {
+        Ok(v) => {
+            info!("{:#?}", v);
+        }
         Err(e) => {
-            error!("✗ Basic connection test failed: {}", e);
+            error!("get_nodes_table failed: {}", e);
+            drop(openstaad);
+            return Err(e);
+        }
+    }
+    match get_beams_table(&mut openstaad) {
+        Ok(v) => {
+            info!("{:#?}", v);
+        }
+        Err(e) => {
+            error!("get_beams_table failed: {}", e);
             drop(openstaad);
             return Err(e);
         }
     }
 
-    // let geometry = Staad::Geometry(Arc::new(_geometry));
-    // match test_geometry(&geometry) {
-    //     Ok(_) => info!("✓ Geometry test passed"),
+    // match test_openstaad(&openstaad, std_path.to_string()) {
+    //     Ok(_) => info!("✓ Basic connection test passed"),
     //     Err(e) => {
-    //         error!("✗ Geometry test failed: {}", e);
+    //         error!("✗ Basic connection test failed: {}", e);
+    //         drop(openstaad);
     //         return Err(e);
     //     }
     // }
 
-    let output = Staad::Output(_output);
-    match test_output(&output) {
-        Ok(_) => info!("✓ Output test passed"),
-        Err(e) => {
-            error!("✗ Output test failed: {}", e);
-            return Err(e);
-        }
-    }
+    // let output = Staad::Output(_output);
+    // match test_output(&output) {
+    //     Ok(_) => info!("✓ Output test passed"),
+    //     Err(e) => {
+    //         error!("✗ Output test failed: {}", e);
+    //         return Err(e);
+    //     }
+    // }
 
     Ok(())
 }

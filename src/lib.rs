@@ -13,7 +13,9 @@ use serde_json::Value;
 use tools::value_types::{InType, Input};
 
 use crate::openstaad::app::OpenStaad;
+use crate::openstaad::custom::*;
 use crate::openstaad::execute::execute_method;
+use crate::tools::value_types::convert_to_inputs;
 
 // 메시지 타입 정의
 #[derive(Debug)]
@@ -29,6 +31,12 @@ pub enum ThreadMessage {
         response_tx: oneshot::Sender<Result<Value, String>>,
     },
     Method {
+        id: String,
+        method: String,
+        params: Vec<Value>,
+        response_tx: oneshot::Sender<Result<Value, String>>,
+    },
+    CustomMethod {
         id: String,
         method: String,
         params: Vec<Value>,
@@ -70,6 +78,14 @@ pub fn start() -> Result<(), String> {
                     let result = handle_initialize(&mut local_store, path, std_path);
                     let _ = response_tx.send(result);
                 }
+                ThreadMessage::Instance {
+                    id,
+                    property,
+                    response_tx,
+                } => {
+                    let result = handle_instance(&mut local_store, id, property);
+                    let _ = response_tx.send(result);
+                }
                 ThreadMessage::Method {
                     id,
                     method,
@@ -79,12 +95,13 @@ pub fn start() -> Result<(), String> {
                     let result = handle_method(&local_store, id, method, params);
                     let _ = response_tx.send(result);
                 }
-                ThreadMessage::Instance {
+                ThreadMessage::CustomMethod {
                     id,
-                    property,
+                    method,
+                    params,
                     response_tx,
                 } => {
-                    let result = handle_instance(&mut local_store, id, property);
+                    let result = handle_custom_method(&mut local_store, id, method, params);
                     let _ = response_tx.send(result);
                 }
                 ThreadMessage::Shutdown => {
@@ -115,7 +132,7 @@ pub async fn send(msg: String, data: Value) -> Result<Value, String> {
     let (response_tx, response_rx) = oneshot::channel();
 
     let message = match msg.as_str() {
-        "initialize" => {
+        "Initialize" => {
             let path = data["path"].as_str().ok_or("Missing path")?;
             let std_path = data["std_path"].as_str().ok_or("Missing std_path")?;
             ThreadMessage::Initialize {
@@ -124,7 +141,7 @@ pub async fn send(msg: String, data: Value) -> Result<Value, String> {
                 response_tx,
             }
         }
-        "instance" => {
+        "Instance" => {
             let id = data["id"].as_str().ok_or("Missing id")?.to_string();
             let instance_type = data["instance_type"]
                 .as_str()
@@ -136,11 +153,22 @@ pub async fn send(msg: String, data: Value) -> Result<Value, String> {
                 response_tx,
             }
         }
-        "method" => {
+        "Method" => {
             let id = data["id"].as_str().ok_or("Missing id")?.to_string();
             let method = data["method"].as_str().ok_or("Missing method")?.to_string();
             let params = data["params"].as_array().ok_or("Missing params")?.clone();
             ThreadMessage::Method {
+                id,
+                method,
+                params,
+                response_tx,
+            }
+        }
+        "CustomMethod" => {
+            let id = data["id"].as_str().ok_or("Missing id")?.to_string();
+            let method = data["method"].as_str().ok_or("Missing method")?.to_string();
+            let params = data["params"].as_array().ok_or("Missing params")?.clone();
+            ThreadMessage::CustomMethod {
                 id,
                 method,
                 params,
@@ -185,7 +213,7 @@ pub fn shutdown() -> Result<(), String> {
 }
 
 // 백그라운드 스레드에서 사용할 핸들러 함수들
-pub fn handle_initialize(
+fn handle_initialize(
     store: &mut HashMap<String, Staad>,
     path: String,
     std_path: String,
@@ -203,7 +231,7 @@ pub fn handle_initialize(
     }
 }
 
-pub fn handle_instance(
+fn handle_instance(
     store: &mut HashMap<String, Staad>,
     id: String,
     instance_type: String,
@@ -332,7 +360,7 @@ pub fn handle_instance(
     }
 }
 
-pub fn handle_method(
+fn handle_method(
     store: &HashMap<String, Staad>,
     id: String,
     method: String,
@@ -340,8 +368,8 @@ pub fn handle_method(
 ) -> Result<Value, String> {
     let arc = store.get(&id);
     if let Some(instance) = arc {
-        let converted_params = convert_to_inputs(instance, method.as_str(), &params)
-            .map_err(|e| e.to_string())?;
+        let converted_params =
+            convert_to_inputs(instance, method.as_str(), &params).map_err(|e| e.to_string())?;
         return execute_method(instance, method.as_str(), converted_params.as_slice())
             .map_err(|e| e.to_string());
     } else {
@@ -349,46 +377,25 @@ pub fn handle_method(
     }
 }
 
-fn convert_to_inputs(
-    instance: &Staad,
-    method: &str,
-    params: &Vec<Value>,
-) -> Result<Vec<Input>> {
-    let methods = match instance {
-        Staad::OpenStaad(v) => &v.methods,
-        Staad::Geometry(v) => &v.methods,
-        Staad::Command(v) => &v.methods,
-        Staad::Design(v) => &v.methods,
-        Staad::Load(v) => &v.methods,
-        Staad::Output(v) => &v.methods,
-        Staad::Property(v) => &v.methods,
-        Staad::Support(v) => &v.methods,
-        _ => bail!("[Convert] Unsupported Staad instance".to_string()),
-    };
-    let (_inputs, _outputs) = match methods.get(method) {
-        Some(sig) => (&sig.inputs, &sig.outputs),
-        None => bail!(format!(
-            "[Convert] Unsupported method on {:#?}: {}",
-            instance, method
-        )),
-    };
-
-    let params_count = params.len();
-    let required_count = InType::count_general_type(_inputs);
-    if params_count != required_count {
-        bail!(
-            "[Convert] '{}' method takes {} arguments but {} arguments were supplied",
-            method,
-            required_count,
-            params_count
-        );
+fn handle_custom_method(
+    store: &mut HashMap<String, Staad>,
+    id: String,
+    method: String,
+    params: Vec<Value>,
+) -> Result<Value, String> {
+    let arc = store.get_mut(&id);
+    match arc {
+        Some(instance) => match method.as_str() {
+            "get_nodes_table" => {
+                let v = get_nodes_table(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "get_beams_table" => {
+                let v = get_beams_table(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            _ => return Err(format!("Invalid custom method name: {}", method)),
+        },
+        _ => Err(format!("OpenStaad instance is not initialized: {}", id)),
     }
-
-    let converted_inputs: Result<Vec<Input>, Error> = InType::filter_general_type(_inputs)
-        .iter()
-        .enumerate()
-        .map(|(i, _type)| _type.to_input_as(&params[i]))
-        .collect();
-
-    converted_inputs
 }

@@ -1,11 +1,9 @@
 use anyhow::{Context, Result, anyhow, bail};
 use log::{info, warn};
 use serde::Serialize;
-use windows::Win32::System::Com::{
-    COINIT_SPEED_OVER_MEMORY, CoUninitialize, GetRunningObjectTable, IMoniker,
-};
+use windows::Win32::System::Com::{CoUninitialize, GetRunningObjectTable, IMoniker};
 use windows::Win32::System::Ole::GetActiveObject;
-use windows::Win32::System::Variant::{VariantToBoolean, VariantToInt32};
+use windows::Win32::System::Variant::VariantToInt32;
 use windows::{
     Win32::System::{
         Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, IDispatch},
@@ -13,7 +11,7 @@ use windows::{
     },
     core::{GUID, HSTRING, PCWSTR},
 };
-use windows_core::{IUnknown, Interface, PWSTR};
+use windows_core::{IUnknown, Interface};
 
 use crate::openstaad::command::Command;
 use crate::openstaad::design::Design;
@@ -22,30 +20,10 @@ use crate::openstaad::load::Load;
 use crate::openstaad::output::Output;
 use crate::openstaad::property::Property;
 use crate::openstaad::support::Support;
-use crate::tools::invoke::{self, invoke_method, invoke_property};
-use crate::tools::value_types::{
-    InType as ptype, Input as tparam, MethodSignature, OutType as rtype,
-};
-use std::mem;
-use std::os::windows::process::CommandExt;
-use std::ptr;
-use std::{
-    collections::{HashMap, HashSet},
-    ffi::OsStr,
-    os::windows::ffi::OsStrExt,
-    path::Path,
-    sync::Arc,
-    thread,
-    time::Duration,
-};
-use windows::Win32::Foundation::{CloseHandle, FALSE};
-use windows::Win32::System::Threading::STARTF_USESHOWWINDOW;
-use windows::Win32::System::Threading::{
-    CREATE_NO_WINDOW, CreateProcessW, GetExitCodeProcess, PROCESS_INFORMATION,
-};
+use crate::tools::invoke::{invoke_method, invoke_property};
+use crate::tools::value_types::{InType as ptype, MethodSignature, OutType as rtype};
+use std::{collections::HashMap, sync::Arc, thread, time::Duration};
 
-/// A wrapper struct to manage the OpenSTAAD application instance.
-/// It will handle cleanup (releasing COM objects) when it goes out of scope.
 #[derive(Debug, Clone, Serialize)]
 pub struct OpenStaad {
     #[serde(skip)]
@@ -66,62 +44,6 @@ impl OpenStaad {
     /// Connects to OpenSTAAD and initializes the application.
     pub fn new(system_path: String, std_path: String) -> Result<Self> {
         let (id, dispatch) = initialize(system_path, std_path)?;
-        // let id = 111;
-        // let dispatch = get_active_object()?;
-        // let prog_id = HSTRING::from("StaadPro.OpenSTAAD");
-
-        // let clsid = unsafe {
-        //     CLSIDFromProgID(PCWSTR(prog_id.as_ptr())).map_err(|e| anyhow!("CLSID_ERR: {}", e))?
-        // };
-        // let _cmd = std::process::Command::new(&system_path)
-        //     .args(&[std_path.as_str(), "/h"])
-        //     .spawn()?;
-
-        // let _hwnd = unsafe {
-        //     WindowsAndMessaging::FindWindowW(PCWSTR(prog_id.as_ptr()), PCWSTR(prog_id.as_ptr()))
-        // }
-        // .unwrap();
-
-        // unsafe {
-        //     let _ = WindowsAndMessaging::ShowWindow(_hwnd, SW_HIDE);
-        // };
-
-        // return Err(anyhow!("asdd"));
-
-        // unsafe {
-        //     if CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_SPEED_OVER_MEMORY).is_err() {
-        //         bail!("COM already initialized or initialization failed");
-        //     }
-        // }
-
-        // let dispatch = unsafe {
-        //     CoCreateInstance(&clsid, None, CLSCTX_LOCAL_SERVER)
-        //         .map_err(|e| anyhow!("CoCreateInstance failed: {}", e))?
-        // };
-        // unsafe {
-        //     let mut attempts = 0;
-        //     let max_attempts = 5;
-        //     loop {
-        //         attempts += 1;
-        //         // let _geometry = invoke_property(&dispatch, "Geometry")?;
-        //         let geo_var = invoke_method(&dispatch, "Geometry", &mut [])?;
-        //         let _geometry = IDispatch::try_from(&geo_var)?;
-        //         let ttt = invoke_method(&_geometry, "GetLastNodeNo", &mut []);
-        //         match ttt {
-        //             Ok(var) => break,
-        //             Err(e) => {
-        //                 if attempts > max_attempts {
-        //                     info!("Fail to load std.");
-        //                     break;
-        //                 } else {
-        //                     info!("Waiting for loading std..: {}", e);
-        //                     thread::sleep(Duration::from_millis(3000));
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-
         let mut methods: HashMap<String, MethodSignature> = HashMap::new();
         let _ = set_methods(&mut methods);
         let instance = Self {
