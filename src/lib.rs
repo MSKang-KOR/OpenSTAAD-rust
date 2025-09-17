@@ -4,18 +4,17 @@ pub mod tools;
 pub use anyhow::{Context, Error, Result, anyhow, bail};
 pub use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{LazyLock, Mutex};
 use std::thread::{self, JoinHandle};
 use tokio::sync::{mpsc, oneshot};
 
 use openstaad::bindings::Staad;
 use serde_json::Value;
-use tools::value_types::{InType, Input};
 
 use crate::openstaad::app::OpenStaad;
 use crate::openstaad::custom::*;
 use crate::openstaad::execute::execute_method;
-use crate::tools::value_types::convert_to_inputs;
+use crate::tools::{InType, Input};
 
 // 메시지 타입 정의
 #[derive(Debug)]
@@ -143,13 +142,13 @@ pub async fn send(msg: String, data: Value) -> Result<Value, String> {
         }
         "Instance" => {
             let id = data["id"].as_str().ok_or("Missing id")?.to_string();
-            let instance_type = data["instance_type"]
+            let property = data["property"]
                 .as_str()
-                .ok_or("Missing instance_type")?
+                .ok_or("Missing property")?
                 .to_string();
             ThreadMessage::Instance {
                 id,
-                property: instance_type,
+                property,
                 response_tx,
             }
         }
@@ -184,11 +183,11 @@ pub async fn send(msg: String, data: Value) -> Result<Value, String> {
         Ok(result) => match result {
             Ok(value) => {
                 match msg.as_str() {
-                    "initialize" | "get_instance" => {
+                    "Initialize" | "Instance" => {
                         // String을 JSON Value로 변환
                         serde_json::to_value(value).map_err(|e| e.to_string())
                     }
-                    "invoke" => Ok(value),
+                    "Method" | "CustomMethod" => Ok(value),
                     _ => Err("Unexpected result type".to_string()),
                 }
             }
@@ -218,7 +217,8 @@ fn handle_initialize(
     path: String,
     std_path: String,
 ) -> Result<Value, String> {
-    let app_result = OpenStaad::new(path, std_path);
+    // let app_result = OpenStaad::new(path, std_path);
+    let app_result = OpenStaad::new_by_activated();
     match app_result {
         Ok(instance) => {
             let store_id = instance.id.to_string();
@@ -386,16 +386,56 @@ fn handle_custom_method(
     let arc = store.get_mut(&id);
     match arc {
         Some(instance) => match method.as_str() {
-            "get_nodes_table" => {
-                let v = get_nodes_table(instance).map_err(|e| e.to_string())?;
+            "get_node_table" => {
+                let v = get_node_table(instance).map_err(|e| e.to_string())?;
                 serde_json::to_value(v).map_err(|e| e.to_string())
             }
-            "get_beams_table" => {
-                let v = get_beams_table(instance).map_err(|e| e.to_string())?;
+            "get_beam_table" => {
+                let v = get_beam_table(instance).map_err(|e| e.to_string())?;
                 serde_json::to_value(v).map_err(|e| e.to_string())
             }
             _ => return Err(format!("Invalid custom method name: {}", method)),
         },
         _ => Err(format!("OpenStaad instance is not initialized: {}", id)),
     }
+}
+
+fn convert_to_inputs(instance: &Staad, method: &str, params: &Vec<Value>) -> Result<Vec<Input>> {
+    let methods = match instance {
+        Staad::OpenStaad(v) => &v.methods,
+        Staad::Geometry(v) => &v.methods,
+        Staad::Command(v) => &v.methods,
+        Staad::Design(v) => &v.methods,
+        Staad::Load(v) => &v.methods,
+        Staad::Output(v) => &v.methods,
+        Staad::Property(v) => &v.methods,
+        Staad::Support(v) => &v.methods,
+        _ => bail!("[Convert] Unsupported Staad instance".to_string()),
+    };
+    let (_inputs, _outputs) = match methods.get(method) {
+        Some(sig) => (&sig.inputs, &sig.outputs),
+        None => bail!(format!(
+            "[Convert] Unsupported method on {:#?}: {}",
+            instance, method
+        )),
+    };
+
+    let params_count = params.len();
+    let required_count = InType::count_general_type(_inputs);
+    if params_count != required_count {
+        bail!(
+            "[Convert] '{}' method takes {} arguments but {} arguments were supplied",
+            method,
+            required_count,
+            params_count
+        );
+    }
+
+    let converted_inputs: Result<Vec<Input>> = InType::filter_general_type(_inputs)
+        .iter()
+        .enumerate()
+        .map(|(i, _type)| _type.to_input_as(&params[i]))
+        .collect();
+
+    converted_inputs
 }

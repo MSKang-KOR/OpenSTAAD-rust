@@ -130,7 +130,10 @@ impl<T: SafeArrayElement> VariantWithPtr for SafeArray<T> {
         (VT_ARRAY | T::VT_TYPE, VARIANT_0_0_0 { parray: ptr })
     }
     fn get_value(variant: &VARIANT) -> Self::ValueType {
-        unsafe { *variant.Anonymous.Anonymous.Anonymous.pparray }
+        unsafe {
+            let tt = *variant.Anonymous.Anonymous.Anonymous.pparray;
+            return tt;
+        }
     }
 }
 

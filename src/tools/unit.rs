@@ -1,6 +1,7 @@
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
+use serde_json::{Value, json};
 
-pub fn get_unit_factor(base_unit: i32, unit: &str) -> Result<f64> {
+pub fn unit_factor(base_unit: i32, unit: &str) -> Result<f64> {
     let factor = match base_unit {
         // inch, kip
         1 => match unit {
@@ -39,4 +40,11 @@ pub fn get_unit_factor(base_unit: i32, unit: &str) -> Result<f64> {
         _ => bail!("Invalid Base unit: {}", base_unit),
     };
     Ok(factor)
+}
+
+pub fn round_with_factor(value: &Value, factor: f64, decimal: i32) -> Result<Value> {
+    let v_f64 = value.as_f64().context("MP context err")?;
+    let multiplier = 10_f64.powi(decimal);
+    let rounded = (v_f64 * factor * multiplier).round() / multiplier;
+    Ok(json!(rounded))
 }

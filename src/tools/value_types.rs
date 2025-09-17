@@ -11,7 +11,7 @@ use windows::Win32::System::{
 use windows_core::BSTR;
 
 use crate::{
-    openstaad::bindings::{MemberSteelDgnParams, Staad},
+    openstaad::bindings::MemberSteelDgnParams,
     tools::{
         safe_array_from_vec1d, safe_array_from_vec2d, variant::SafeArray, variant_with_ptr_from,
         variant_with_ptr_to,
@@ -533,48 +533,4 @@ impl From<Option<Vec<Vec<String>>>> for Input {
 pub struct MethodSignature {
     pub inputs: Vec<InType>,
     pub outputs: Vec<OutType>,
-}
-
-pub fn convert_to_inputs(
-    instance: &Staad,
-    method: &str,
-    params: &Vec<Value>,
-) -> Result<Vec<Input>> {
-    let methods = match instance {
-        Staad::OpenStaad(v) => &v.methods,
-        Staad::Geometry(v) => &v.methods,
-        Staad::Command(v) => &v.methods,
-        Staad::Design(v) => &v.methods,
-        Staad::Load(v) => &v.methods,
-        Staad::Output(v) => &v.methods,
-        Staad::Property(v) => &v.methods,
-        Staad::Support(v) => &v.methods,
-        _ => bail!("[Convert] Unsupported Staad instance".to_string()),
-    };
-    let (_inputs, _outputs) = match methods.get(method) {
-        Some(sig) => (&sig.inputs, &sig.outputs),
-        None => bail!(format!(
-            "[Convert] Unsupported method on {:#?}: {}",
-            instance, method
-        )),
-    };
-
-    let params_count = params.len();
-    let required_count = InType::count_general_type(_inputs);
-    if params_count != required_count {
-        bail!(
-            "[Convert] '{}' method takes {} arguments but {} arguments were supplied",
-            method,
-            required_count,
-            params_count
-        );
-    }
-
-    let converted_inputs: Result<Vec<Input>> = InType::filter_general_type(_inputs)
-        .iter()
-        .enumerate()
-        .map(|(i, _type)| _type.to_input_as(&params[i]))
-        .collect();
-
-    converted_inputs
 }

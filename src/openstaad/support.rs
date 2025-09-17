@@ -364,12 +364,18 @@ fn set_methods(methods: &mut HashMap<String, MethodSignature>) {
         MethodSignature {
             inputs: vec![
                 itype::Int,
-                itype::Int,
-                itype::Int,
+                itype::MutInt,
+                itype::MutInt,
                 itype::MutVecInt,
                 itype::MutVecDouble,
             ],
-            outputs: vec![otype::Int, otype::Index(3), otype::Index(4)],
+            outputs: vec![
+                otype::Int,
+                otype::Index(1),
+                otype::Index(2),
+                otype::Index(3),
+                otype::Index(4),
+            ],
         },
     );
     methods.insert(

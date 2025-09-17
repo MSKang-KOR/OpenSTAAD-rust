@@ -1592,11 +1592,11 @@ fn set_methods(methods: &mut HashMap<String, MethodSignature>) {
             inputs: vec![
                 itype::Int,
                 itype::MutVecDouble,
+                itype::MutDouble,
                 itype::MutVecDouble,
+                itype::MutDouble,
                 itype::MutVecDouble,
-                itype::MutVecDouble,
-                itype::MutVecDouble,
-                itype::MutVecDouble,
+                itype::MutDouble,
             ],
             outputs: vec![
                 otype::Str,

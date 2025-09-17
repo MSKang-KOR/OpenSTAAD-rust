@@ -1,34 +1,10 @@
-use std::sync::Arc;
-
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use windows::Win32::System::{
     Com::{CoUninitialize, IDispatch},
     Variant::{VARIANT, VariantToInt32, VariantToStringAlloc},
 };
 
-use crate::{
-    openstaad::{
-        app::OpenStaad, command::Command, design::Design, geometry::Geometry, load::Load,
-        output::Output, property::Property, support::Support,
-    },
-    tools::invoke::invoke_method,
-};
-
-#[derive(Debug)]
-pub enum Staad {
-    OpenStaad(OpenStaad),
-    Geometry(Arc<Geometry>),
-    Command(Arc<Command>),
-    Design(Arc<Design>),
-    Load(Arc<Load>),
-    Output(Arc<Output>),
-    Property(Arc<Property>),
-    Support(Arc<Support>),
-}
-
-unsafe impl Send for Staad {}
-unsafe impl Sync for Staad {}
+use crate::tools::invoke_method;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MemberSteelDgnParams {
@@ -77,26 +53,7 @@ impl MemberSteelDgnParams {
                     default,
                 })
             }
-            CoUninitialize();
         }
         _vec
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NodeTableRow {
-    pub id: i32,
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
-}
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BeamTableRow {
-    pub id: i32,
-    pub i: i32,
-    pub j: i32,
-    pub property: i32,
-    pub material: String,
-    pub beta: f64,
-    pub length: f64,
 }

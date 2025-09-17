@@ -132,25 +132,18 @@ impl SafeArrayExtractor for BSTR {
     }
 }
 
-pub fn safe_array_to_vec1d<T: SafeArrayExtractor>(sa: *mut SAFEARRAY) -> Result<Vec<T::Output>> {
+pub fn sa_to_vec1d<T: SafeArrayExtractor>(sa: *mut SAFEARRAY) -> Result<Vec<T::Output>> {
     unsafe {
         let ub = SafeArrayGetUBound(sa, 1)?;
         let lb = SafeArrayGetLBound(sa, 1)?;
         let count = ub - lb + 1;
         let mut vec = Vec::with_capacity(count as usize);
-
         for i in 0..count {
             let mut index = lb + i;
-            // 타입에 맞는 크기의 버퍼 생성
-            let mut buffer = vec![0u8; mem::size_of::<T>()];
-
-            SafeArrayGetElement(
-                sa,
-                &mut index as *mut i32,
-                buffer.as_mut_ptr() as *mut c_void,
-            )?;
-
-            let value = T::extract_from_safearray(buffer.as_mut_ptr() as *mut c_void);
+            let mut value: T::Output = mem::zeroed();
+            let pv = &mut value as *mut T::Output as *mut c_void;
+            SafeArrayGetElement(sa, &mut index as *mut i32, pv)?;
+            let value = T::extract_from_safearray(pv);
             vec.push(value);
         }
 
@@ -158,9 +151,7 @@ pub fn safe_array_to_vec1d<T: SafeArrayExtractor>(sa: *mut SAFEARRAY) -> Result<
     }
 }
 
-pub fn safe_array_to_vec2d<T: SafeArrayExtractor>(
-    sa: *mut SAFEARRAY,
-) -> Result<Vec<Vec<T::Output>>> {
+pub fn sa_to_vec2d<T: SafeArrayExtractor>(sa: *mut SAFEARRAY) -> Result<Vec<Vec<T::Output>>> {
     unsafe {
         let row_ub = SafeArrayGetUBound(sa, 1)?;
         let row_lb = SafeArrayGetLBound(sa, 1)?;
@@ -174,20 +165,17 @@ pub fn safe_array_to_vec2d<T: SafeArrayExtractor>(
 
         for i in 0..row_count {
             let mut row = Vec::with_capacity(col_count);
-
             for j in 0..col_count {
                 let indices = [row_lb + i as i32, col_lb + j as i32];
-                let mut buffer = vec![0u8; mem::size_of::<T>()];
+                let mut value: T::Output = mem::zeroed();
+                let pv = &mut value as *mut T::Output as *mut c_void;
 
-                SafeArrayGetElement(sa, indices.as_ptr(), buffer.as_mut_ptr() as *mut c_void)?;
-
-                let value = T::extract_from_safearray(buffer.as_mut_ptr() as *mut c_void);
+                SafeArrayGetElement(sa, indices.as_ptr(), pv)?;
+                let value = T::extract_from_safearray(pv);
                 row.push(value);
             }
-
             vec.push(row);
         }
-
         Ok(vec)
     }
 }

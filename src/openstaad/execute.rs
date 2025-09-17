@@ -102,7 +102,7 @@ pub fn execute_method(instance: &Staad, method: &str, params: &[Input]) -> Resul
                     let count = get_array_count(app, method, params, i);
                     let psa = SafeArrayCreateVector(VT_R8, 0, count as u32);
                     let mut mut_value = Box::new(psa);
-                    let ptr = mut_value.as_mut() as *mut *mut SAFEARRAY;
+                    let ptr: *mut *mut SAFEARRAY = mut_value.as_mut() as *mut *mut SAFEARRAY;
                     mut_storages.push(mut_value);
                     variant_with_ptr_from::<SafeArrayP<f64>>(ptr)
                 },
@@ -241,6 +241,92 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
             "GetUptGeneralStressLocationPoints" => {
                 count = 4; // Fixed size array according to documentation
             }
+            "GetBeamSectionPropertyValuesEx" => {
+                count = 24; // Fixed size array according to documentation
+            }
+            "GetIsotropicMaterialAssignedPlateList" => {
+                let var = params[0].clone().to_variant();
+                let variant = invoke_method(
+                    dispatch,
+                    "GetIsotropicMaterialAssignedPlateCount",
+                    &mut [var],
+                )
+                .unwrap();
+                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+            }
+            "GetSectionPropertyAssignedBeamList" => {
+                let var = params[0].clone().to_variant();
+                let variant =
+                    invoke_method(dispatch, "GetSectionPropertyAssignedBeamCount", &mut [var])
+                        .unwrap();
+                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+            }
+            "GetSectionPropertyList" => {
+                let variant = invoke_method(dispatch, "GetSectionPropertyCount", &mut []).unwrap();
+                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+            }
+            "GetSectionPropertyValuesEx" => {
+                let variant =
+                    invoke_method(dispatch, "GetCountofSectionPropertyValuesEx", &mut []).unwrap();
+                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+            }
+            "GetUserProvidedTableList" => {
+                let variant =
+                    invoke_method(dispatch, "GetUserProvidedTableCount", &mut []).unwrap();
+                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+            }
+            "GetUserProvidedTableSectionList" => {
+                let var = params[0].clone().to_variant();
+                let variant =
+                    invoke_method(dispatch, "GetUserProvidedTableSectionCount", &mut [var])
+                        .unwrap();
+                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+            }
+
+            "GetMemberReleaseSpecEx" => {
+                if index == 2 {
+                    count = 6; // stress array: Top/Bottom Max/Min/TauMax (6 values)
+                } else if index == 3 {
+                    count = 6; // angles array: Top/Bottom angles (2 values)
+                } else if index == 5 {
+                    count = 3; // angles array: Top/Bottom angles (2 values)
+                } else {
+                    count = 0; // Should not happen for this method
+                    warn!("Unexpected index {} for GetMemberReleaseSpecEx", index);
+                }
+            }
+            "GetIsotropicMaterialAssignedBeamList" => {
+                let var = params[0].clone().to_variant();
+                let variant = invoke_method(
+                    dispatch,
+                    "GetIsotropicMaterialAssignedBeamCount",
+                    &mut [var],
+                )
+                .unwrap();
+                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+            }
+            "GetOrthotropic2DMaterialProperties" => {
+                if index == 1 {
+                    count = 2; // stress array: Top/Bottom Max/Min/TauMax (6 values)
+                } else if index == 3 {
+                    count = 3; // angles array: Top/Bottom angles (2 values)
+                } else if index == 5 {
+                    count = 2; // angles array: Top/Bottom angles (2 values)
+                } else {
+                    count = 0; // Should not happen for this method
+                    warn!(
+                        "Unexpected index {} for GetOrthotropic2DMaterialProperties",
+                        index
+                    );
+                }
+            }
+            "GetOrthotropic3DMaterialProperties" => {
+                count = 3;
+            }
+            "GetMemberReleaseSpec" => {
+                count = 6;
+            }
+
             // Support methods
             "GetElasticFootingAssignmentList" => {
                 let var1 = params[0].clone().to_variant();

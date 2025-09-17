@@ -2,18 +2,13 @@ use anyhow::{Result, anyhow};
 use chrono::Local;
 use log::{error, info, warn};
 use openstaad_rust::{
-    openstaad::{
-        app::OpenStaad,
-        bindings::Staad,
-        custom::{get_beams_table, get_nodes_table},
-        execute::execute_method,
-    },
+    openstaad::{app::OpenStaad, bindings::Staad, custom::*, execute::execute_method},
     tools::{
-        InType, SafeArray, SafeArrayP, invoke_method, safe_array_from_vec1d, safe_array_to_vec1d,
+        InType, SafeArray, SafeArrayP, invoke_method, sa_to_vec1d, safe_array_from_vec1d,
         variant_with_ptr_from, variant_with_ptr_to,
     },
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::{
     ffi::{OsStr, c_void},
     fs::OpenOptions,
@@ -48,140 +43,129 @@ fn main() -> Result<()> {
     let _geometry = _openstaad.get_geometry()?;
 
     let mut openstaad = Staad::OpenStaad(_openstaad);
-    match get_nodes_table(&mut openstaad) {
-        Ok(v) => {
-            info!("{:#?}", v);
-        }
-        Err(e) => {
-            error!("get_nodes_table failed: {}", e);
-            drop(openstaad);
-            return Err(e);
-        }
-    }
-    match get_beams_table(&mut openstaad) {
-        Ok(v) => {
-            info!("{:#?}", v);
-        }
-        Err(e) => {
-            error!("get_beams_table failed: {}", e);
-            drop(openstaad);
-            return Err(e);
-        }
-    }
-
-    // match test_openstaad(&openstaad, std_path.to_string()) {
-    //     Ok(_) => info!("✓ Basic connection test passed"),
+    // match get_nodes_table(&mut openstaad) {
+    //     Ok(v) => {
+    //         info!("get_nodes_table {:#?}", v);
+    //     }
     //     Err(e) => {
-    //         error!("✗ Basic connection test failed: {}", e);
+    //         error!("get_nodes_table failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match get_beams_table(&mut openstaad) {
+    //     Ok(v) => {
+    //         info!("get_beams_table {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("get_beams_table failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match get_section_list(&mut openstaad) {
+    //     Ok(v) => {
+    //         info!("get_section_list {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("get_section_list failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match get_section_property_tables(&mut openstaad) {
+    //     Ok(v) => {
+    //         info!("get_section_property_table {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("get_section_property_table failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match get_beta_list(&mut openstaad) {
+    //     Ok(v) => {
+    //         info!("get_beta_list {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("get_beta_list failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match get_orthotropic2d_material_list(&mut openstaad) {
+    //     Ok(v) => {
+    //         info!("get_orthotropic2d_material_list {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("get_orthotropic2d_material_list failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match get_specification_list(&mut openstaad) {
+    //     Ok(v) => {
+    //         info!("get_specification_list {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("get_specification_list failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match get_support_list(&mut openstaad) {
+    //     Ok(v) => {
+    //         info!("get_support_list {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("get_support_list failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match get_reference_load_list(&mut openstaad) {
+    //     Ok(v) => {
+    //         info!("get_reference_load_list {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("get_reference_load_list failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match get_load_case_list(&mut openstaad) {
+    //     Ok(v) => {
+    //         info!("get_load_case_list {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("get_load_case_list failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match get_load_item_list(&mut openstaad, json!(2)) {
+    //     Ok(v) => {
+    //         info!("get_load_item_list {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("get_load_item_list failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match analyze(&mut openstaad) {
+    //     Ok(v) => {
+    //         info!("get_load_item_list {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("get_load_item_list failed: {}", e);
     //         drop(openstaad);
     //         return Err(e);
     //     }
     // }
 
-    // let output = Staad::Output(_output);
-    // match test_output(&output) {
-    //     Ok(_) => info!("✓ Output test passed"),
-    //     Err(e) => {
-    //         error!("✗ Output test failed: {}", e);
-    //         return Err(e);
-    //     }
-    // }
-
     Ok(())
 }
-
-/// Test basic COM connection and interface access
-fn test_openstaad(instance: &Staad, std_path: String) -> Result<()> {
-    let GetProcessId = execute_method(&instance, "GetProcessId", &[])?;
-    info!("GetProcessId: {:#?}", GetProcessId);
-
-    let GetAnalysisStatus = execute_method(&instance, "GetAnalysisStatus", &[std_path.into()])?;
-    info!("GetAnalysisStatus: {:#?}", GetAnalysisStatus);
-
-    // let OpenSTAADFile = execute_method(
-    //     &instance,
-    //     "OpenSTAADFile",
-    //     &["C:\\Users\\kms36\\Downloads\\staa_api_test\\sample.STD"
-    //         .to_string()
-    //         .into()],
-    // )?;
-    // info!("OpenSTAADFile: {:#?}", OpenSTAADFile);
-    Ok(())
-}
-
-fn test_output(instance: &Staad) -> Result<()> {
-    let GetNodeDisplacements =
-        execute_method(&instance, "GetNodeDisplacements", &[1.into(), 351.into()])?;
-    info!("GetNodeDisplacements: {:#?}", GetNodeDisplacements);
-
-    let GetSupportReactions =
-        execute_method(&instance, "GetSupportReactions", &[1051.into(), 351.into()])?;
-    info!("GetSupportReactions: {:#?}", GetSupportReactions);
-
-    let GetMemberSteelDesignResults =
-        execute_method(&instance, "GetMemberSteelDesignResults", &[1.into()])?;
-    info!(
-        "GetMemberSteelDesignResults: {:#?}",
-        GetMemberSteelDesignResults
-    );
-    Ok(())
-}
-
-// /// Test basic COM connection and interface access
-// fn test_geometry(instance: &Staad) -> Result<()> {
-//     // let AddNode = execute_method(
-//     //     &instance,
-//     //     "AddNode",
-//     //     &[10566.979.into(), 103.650.into(), (-9475.481).into()],
-//     // )?;
-//     // info!("AddNode: {:#?}", AddNode);
-//     // let AddMultipleNodes = execute_method(
-//     //     &instance,
-//     //     "AddMultipleNodes",
-//     //     &[vec![
-//     //         vec![10567.979, 103.650, (-9475.481)],
-//     //         vec![10568.979, 103.650, (-9475.481)],
-//     //         vec![10569.979, 103.650, (-9475.481)],
-//     //     ]
-//     //     .into()],
-//     // )?;
-//     // info!("AddMultipleNodes: {:#?}", AddMultipleNodes);
-//     let GetNodeCount = execute_method(&instance, "GetNodeCount", &[])?;
-//     info!("GetNodeCount: {:#?}", GetNodeCount);
-//     let GetNodeDistance = execute_method(
-//         &instance,
-//         "GetNodeDistance",
-//         &[1, 2].map(|x| x.into()).as_slice(),
-//     )?;
-//     info!("GetNodeDistance: {:#?}", GetNodeDistance);
-//     let GetNodeCoordinates = execute_method(&instance, "GetNodeCoordinates", &[1.into()])?;
-//     info!("GetNodeCoordinates: {:#?}", GetNodeCoordinates);
-//     let GetNodeList = execute_method(&instance, "GetNodeList", &[])?;
-//     info!("GetNodeList: {:#?}", GetNodeList);
-//     let GetNodeIncidence_CIS2 = execute_method(&instance, "GetNodeIncidence_CIS2", &[1.into()])?;
-//     info!("GetNodeIncidence_CIS2: {:#?}", GetNodeIncidence_CIS2);
-
-//     let GetNoOfBeamsConnectedAtNode =
-//         execute_method(&instance, "GetNoOfBeamsConnectedAtNode", &[1.into()])?;
-//     info!(
-//         "GetNoOfBeamsConnectedAtNode: {:#?}",
-//         GetNoOfBeamsConnectedAtNode
-//     );
-//     let GetBeamsConnectedAtNode =
-//         execute_method(&instance, "GetBeamsConnectedAtNode", &[1.into()])?;
-//     info!("GetBeamsConnectedAtNode: {:#?}", GetBeamsConnectedAtNode);
-//     let IntersectBeams = execute_method(
-//         &instance,
-//         "IntersectBeams",
-//         &[1.into(), vec![1, 2, 3].into(), 0.1.into()],
-//     )?;
-//     info!("IntersectBeams: {:#?}", IntersectBeams);
-//     let GetGroupCount = execute_method(&instance, "GetGroupCount", &[2.into()])?;
-//     info!("GetGroupCount: {:#?}", GetGroupCount);
-//     let GetGroupNames = execute_method(&instance, "GetGroupNames", &[2.into()])?;
-//     info!("GetGroupNames: {:#?}", GetGroupNames);
-//     Ok(())
-// }
 
 /// Setup file logging to save all logs to a timestamped txt file
 fn setup_file_logging() -> Result<()> {
