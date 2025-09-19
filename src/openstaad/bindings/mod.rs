@@ -1,3 +1,4 @@
+pub mod analysis;
 pub mod base;
 pub mod design;
 pub mod load;
@@ -7,6 +8,7 @@ pub mod specification;
 pub mod support;
 pub mod table;
 
+pub use analysis::*;
 pub use base::*;
 pub use design::*;
 pub use load::*;

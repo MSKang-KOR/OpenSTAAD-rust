@@ -1,27 +1,10 @@
 use anyhow::{Result, anyhow};
 use chrono::Local;
 use log::{error, info, warn};
-use openstaad_rust::{
-    openstaad::{app::OpenStaad, bindings::Staad, custom::*, execute::execute_method},
-    tools::{
-        InType, SafeArray, SafeArrayP, invoke_method, sa_to_vec1d, safe_array_from_vec1d,
-        variant_with_ptr_from, variant_with_ptr_to,
-    },
+use openstaad_rust::openstaad::{
+    app::OpenStaad, bindings::Staad, custom::*, execute::execute_method,
 };
-use serde_json::{Value, json};
-use std::{
-    ffi::{OsStr, c_void},
-    fs::OpenOptions,
-    os::windows::ffi::OsStrExt,
-    sync::Arc,
-};
-use windows::Win32::System::{
-    Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize, SAFEARRAY},
-    Ole::{SafeArrayCreateVector, SafeArrayGetElement},
-    Variant::{
-        VARIANT, VT_I4, VT_R4, VT_R8, VariantToBoolean, VariantToInt32, VariantToStringAlloc,
-    },
-};
+use std::fs::OpenOptions;
 
 fn main() -> Result<()> {
     // Initialize file logging with timestamp
@@ -41,8 +24,11 @@ fn main() -> Result<()> {
     })?;
     let _output = _openstaad.get_output()?;
     let _geometry = _openstaad.get_geometry()?;
+    let _design = _openstaad.get_design()?;
 
     let mut openstaad = Staad::OpenStaad(_openstaad);
+    let mut output = Staad::Output(_output);
+    let mut design = Staad::Design(_design);
     // match get_nodes_table(&mut openstaad) {
     //     Ok(v) => {
     //         info!("get_nodes_table {:#?}", v);
@@ -159,6 +145,112 @@ fn main() -> Result<()> {
     //     }
     //     Err(e) => {
     //         error!("get_load_item_list failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    match get_design_results(&mut openstaad) {
+        Ok(v) => {
+            info!("get_design_results {:#?}", v);
+        }
+        Err(e) => {
+            error!("get_design_results failed: {}", e);
+            drop(openstaad);
+            return Err(e);
+        }
+    }
+
+    // match execute_method(&openstaad, "SetSilentMode", &[1.into()]) {
+    //     Ok(v) => {
+    //         info!("SetSilentMode {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("SetSilentMode failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match execute_method(&openstaad, "AnalyzeEx", &[1.into(), 0.into(), 1.into()]) {
+    //     Ok(v) => {
+    //         info!("AnalyzeEx {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("AnalyzeEx failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match execute_method(&openstaad, "GetSTAADFile", &[true.into()]) {
+    //     Ok(v) => {
+    //         info!("GetSTAADFile {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("GetSTAADFile failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match execute_method(&output, "AreResultsAvailable", &[]) {
+    //     Ok(v) => {
+    //         info!("AreResultsAvailable {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("AreResultsAvailable failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+
+    // match execute_method(&output, "GetMemberSteelDesignRatio", &[1.into()]) {
+    //     Ok(v) => {
+    //         info!("GetMemberSteelDesignRatio {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("GetMemberSteelDesignRatio failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match execute_method(
+    //     &output,
+    //     "GetMemberEndForces",
+    //     &[1.into(), 1.into(), 1.into(), 0.into()],
+    // ) {
+    //     Ok(v) => {
+    //         info!("GetMemberEndForces {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("GetMemberEndForces failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match execute_method(&output, "GetMultipleMemberSteelDesignMaxRatio", &[1.into()]) {
+    //     Ok(v) => {
+    //         info!("GetMultipleMemberSteelDesignMaxRatio {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("GetMultipleMemberSteelDesignMaxRatio failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match execute_method(&design, "GetDesignBriefCode", &[1.into()]) {
+    //     Ok(v) => {
+    //         info!("GetDesignBriefCode {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("GetDesignBriefCode failed: {}", e);
+    //         drop(openstaad);
+    //         return Err(e);
+    //     }
+    // }
+    // match execute_method(&design, "GetMemberDesignParameters", &[1.into(), 1.into()]) {
+    //     Ok(v) => {
+    //         info!("GetMemberDesignParameters {:#?}", v);
+    //     }
+    //     Err(e) => {
+    //         error!("GetMemberDesignParameters failed: {}", e);
     //         drop(openstaad);
     //         return Err(e);
     //     }

@@ -69,21 +69,21 @@ impl VariantWithPtr for bool {
     }
 }
 
-impl VariantWithPtr for Option<IDispatch> {
-    type PointerType = *mut Option<IDispatch>;
-    type ValueType = IDispatch;
+// impl VariantWithPtr for Option<IDispatch> {
+//     type PointerType = *mut Option<IDispatch>;
+//     type ValueType = IDispatch;
 
-    fn get_prop(ptr: Self::PointerType) -> (VARENUM, VARIANT_0_0_0) {
-        (VT_BYREF | VT_DISPATCH, VARIANT_0_0_0 { ppdispVal: ptr })
-    }
-    fn get_value(variant: &VARIANT) -> Self::ValueType {
-        unsafe {
-            (*variant.Anonymous.Anonymous.Anonymous.ppdispVal)
-                .clone()
-                .unwrap()
-        }
-    }
-}
+//     fn get_prop(ptr: Self::PointerType) -> (VARENUM, VARIANT_0_0_0) {
+//         (VT_BYREF | VT_DISPATCH, VARIANT_0_0_0 { ppdispVal: ptr })
+//     }
+//     fn get_value(variant: &VARIANT) -> Self::ValueType {
+//         unsafe {
+//             (&*variant.Anonymous.Anonymous.Anonymous.ppdispVal)
+//                 .clone()
+//                 .unwrap()
+//         }
+//     }
+// }
 
 pub trait SafeArrayElement {
     const VT_TYPE: VARENUM;

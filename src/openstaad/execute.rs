@@ -1,3 +1,5 @@
+use std::mem::ManuallyDrop;
+
 use anyhow::{Result, bail};
 use log::warn;
 use serde_json::Value::Null;
@@ -5,7 +7,9 @@ use serde_json::{Value, to_value as to_json};
 use windows::Win32::System::Com::{
     CLSCTX_LOCAL_SERVER, CLSIDFromProgID, CoCreateInstance, IDispatch,
 };
-use windows::Win32::System::Variant::{VariantClear, VariantToInt32};
+use windows::Win32::System::Variant::{
+    VARIANT_0_0, VARIANT_0_0_0, VT_BYREF, VT_DISPATCH, VariantClear, VariantToInt32,
+};
 use windows::Win32::{
     Foundation::VARIANT_BOOL,
     System::{
@@ -56,13 +60,16 @@ pub fn execute_method(instance: &Staad, method: &str, params: &[Input]) -> Resul
     }
 
     // Create separate storage for mutable pointers to ensure each has unique memory location
+    let mut cur_idx = 0 as usize;
     let mut mut_storages: Vec<Box<dyn std::any::Any>> = Vec::new();
     let mut __variants: Vec<VARIANT> = _inputs
         .iter()
         .enumerate()
         .map(|(i, _type)| {
             if _type.is_general_type() {
-                return params[i].to_variant();
+                let var = params[cur_idx].to_variant();
+                cur_idx += 1;
+                return var;
             }
             // Create individual storage for each mutable parameter
             match _type {
@@ -102,7 +109,7 @@ pub fn execute_method(instance: &Staad, method: &str, params: &[Input]) -> Resul
                     let count = get_array_count(app, method, params, i);
                     let psa = SafeArrayCreateVector(VT_R8, 0, count as u32);
                     let mut mut_value = Box::new(psa);
-                    let ptr: *mut *mut SAFEARRAY = mut_value.as_mut() as *mut *mut SAFEARRAY;
+                    let ptr = mut_value.as_mut() as *mut *mut SAFEARRAY;
                     mut_storages.push(mut_value);
                     variant_with_ptr_from::<SafeArrayP<f64>>(ptr)
                 },
@@ -119,8 +126,20 @@ pub fn execute_method(instance: &Staad, method: &str, params: &[Input]) -> Resul
                         PCWSTR::from_raw(HSTRING::from("StaadPro.MembSteelDgnParams").as_ptr());
                     let clsid = CLSIDFromProgID(clsid_str).unwrap();
                     let _instance = CoCreateInstance(&clsid, None, CLSCTX_LOCAL_SERVER).unwrap();
-                    let instace_ptr: *mut Option<IDispatch> = &mut Some(_instance);
-                    variant_with_ptr_from::<Option<IDispatch>>(instace_ptr)
+                    let instance_ptr: Option<IDispatch> = Some(_instance);
+                    let mut mut_value = Box::new(instance_ptr);
+                    let ptr = mut_value.as_mut() as *mut Option<IDispatch>;
+                    mut_storages.push(mut_value);
+
+                    let mut var = VARIANT::default();
+                    var.Anonymous.Anonymous = ManuallyDrop::new(VARIANT_0_0 {
+                        vt: VT_BYREF | VT_DISPATCH,
+                        wReserved1: 0,
+                        wReserved2: 0,
+                        wReserved3: 0,
+                        Anonymous: VARIANT_0_0_0 { ppdispVal: ptr },
+                    });
+                    var
                 },
                 _ => VARIANT::default(),
             }
@@ -128,6 +147,7 @@ pub fn execute_method(instance: &Staad, method: &str, params: &[Input]) -> Resul
         .collect();
     let mut __params: &mut [VARIANT] = &mut __variants[..];
     __params.reverse();
+
     unsafe {
         let args_len = _inputs.len();
         let invoke_result = invoke_method(app, method, __params);

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use chrono::round;
 use serde_json::{Value, json};
 
 pub fn unit_factor(base_unit: i32, unit: &str) -> Result<f64> {
@@ -42,9 +43,10 @@ pub fn unit_factor(base_unit: i32, unit: &str) -> Result<f64> {
     Ok(factor)
 }
 
-pub fn round_with_factor(value: &Value, factor: f64, decimal: i32) -> Result<Value> {
+pub fn round_with_factor(value: &Value, factor: f64, decimal: i32) -> Result<f64> {
     let v_f64 = value.as_f64().context("MP context err")?;
     let multiplier = 10_f64.powi(decimal);
     let rounded = (v_f64 * factor * multiplier).round() / multiplier;
-    Ok(json!(rounded))
+    Ok(rounded)
+    // Ok(json!(rounded))
 }

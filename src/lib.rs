@@ -6,7 +6,9 @@ pub use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 use std::thread::{self, JoinHandle};
+use tauri::AppHandle;
 use tokio::sync::{mpsc, oneshot};
+use windows::Win32::System::Variant::VARIANT;
 
 use openstaad::bindings::Staad;
 use serde_json::Value;
@@ -14,7 +16,7 @@ use serde_json::Value;
 use crate::openstaad::app::OpenStaad;
 use crate::openstaad::custom::*;
 use crate::openstaad::execute::execute_method;
-use crate::tools::{InType, Input};
+use crate::tools::{InType, Input, invoke_method};
 
 // 메시지 타입 정의
 #[derive(Debug)]
@@ -54,7 +56,7 @@ static THREAD_MANAGER: LazyLock<Mutex<Option<OpenStaadThreadManager>>> =
     LazyLock::new(|| Mutex::new(None));
 
 // 백그라운드 스레드 시작
-pub fn start() -> Result<(), String> {
+pub fn start(handle: AppHandle) -> Result<(), String> {
     let mut manager = THREAD_MANAGER.lock().map_err(|e| e.to_string())?;
 
     if manager.is_some() {
@@ -100,7 +102,8 @@ pub fn start() -> Result<(), String> {
                     params,
                     response_tx,
                 } => {
-                    let result = handle_custom_method(&mut local_store, id, method, params);
+                    let result =
+                        handle_custom_method(&mut local_store, id, method, params, handle.clone());
                     let _ = response_tx.send(result);
                 }
                 ThreadMessage::Shutdown => {
@@ -221,6 +224,9 @@ fn handle_initialize(
     let app_result = OpenStaad::new_by_activated();
     match app_result {
         Ok(instance) => {
+            let _ = unsafe {
+                invoke_method(&instance.dispatch, "SetSilentMode", &mut [VARIANT::from(1)])
+            };
             let store_id = instance.id.to_string();
             if !store.contains_key(&store_id) {
                 store.insert(store_id.clone(), Staad::OpenStaad(instance));
@@ -382,6 +388,7 @@ fn handle_custom_method(
     id: String,
     method: String,
     params: Vec<Value>,
+    handle: AppHandle,
 ) -> Result<Value, String> {
     let arc = store.get_mut(&id);
     match arc {
@@ -392,6 +399,51 @@ fn handle_custom_method(
             }
             "get_beam_table" => {
                 let v = get_beam_table(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "get_section_list" => {
+                let v = get_section_list(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "get_section_property_tables" => {
+                let v = get_section_property_tables(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "get_beta_list" => {
+                let v = get_beta_list(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "get_isotropic_material_list" => {
+                let v = get_isotropic_material_list(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "get_orthotropic2d_material_list" => {
+                let v = get_orthotropic2d_material_list(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "get_specification_list" => {
+                let v = get_specification_list(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "get_support_list" => {
+                let v = get_support_list(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "get_reference_load_list" => {
+                let v = get_reference_load_list(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "get_load_case_list" => {
+                let v = get_load_case_list(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "get_load_item_list" => {
+                let v =
+                    get_load_item_list(instance, params[0].clone()).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
+            "analyze" => {
+                let v = analyze(instance, handle).map_err(|e| e.to_string())?;
                 serde_json::to_value(v).map_err(|e| e.to_string())
             }
             _ => return Err(format!("Invalid custom method name: {}", method)),

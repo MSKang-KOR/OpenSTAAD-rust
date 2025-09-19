@@ -35,10 +35,10 @@ pub fn watch_file_background(path: &PathBuf, app: AppHandle) -> thread::JoinHand
             Path::new(".")
         };
 
-        watcher.watch(watch_path, RecursiveMode::NonRecursive);
+        let _ = watcher.watch(watch_path, RecursiveMode::NonRecursive);
 
         loop {
-            match rx.recv_timeout(Duration::from_secs(10)) {
+            match rx.recv_timeout(Duration::from_secs(600)) {
                 Ok(event) => {
                     if handle_file_event(
                         event.unwrap(),
@@ -54,7 +54,6 @@ pub fn watch_file_background(path: &PathBuf, app: AppHandle) -> thread::JoinHand
                 Err(mpsc::RecvTimeoutError::Timeout) => {
                     let last_time = last_activity.lock().unwrap();
                     let elapsed = last_time.elapsed();
-
                     if elapsed >= Duration::from_secs(10) {
                         println!("End::Time out.");
                         break;

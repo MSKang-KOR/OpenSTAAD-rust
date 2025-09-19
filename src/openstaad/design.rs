@@ -82,7 +82,7 @@ fn set_methods(methods: &mut HashMap<String, MethodSignature>) {
         "GetMemberDesignParameters".to_string(),
         MethodSignature {
             inputs: vec![itype::Int, itype::Int, itype::MemberSteelDgnParams],
-            outputs: vec![otype::Int],
+            outputs: vec![otype::Int, otype::MemberSteelDgnParams],
         },
     );
 }

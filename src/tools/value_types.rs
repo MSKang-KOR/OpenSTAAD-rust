@@ -1,8 +1,9 @@
 use std::ffi::c_void;
 
 use anyhow::{Context, Result, anyhow, bail};
-use serde_json;
 use serde_json::Value;
+use serde_json::{self, json};
+use windows::Win32::System::Variant::VARENUM;
 use windows::Win32::System::{
     Com::IDispatch,
     Ole::{SafeArrayGetElement, SafeArrayGetLBound, SafeArrayGetUBound},
@@ -298,11 +299,16 @@ impl OutType {
                 let o = serde_json::to_value(&_vec)?;
                 Ok(o)
             },
-            Self::MemberSteelDgnParams => {
-                let idispatch = variant_with_ptr_to::<Option<IDispatch>>(variant);
-                let o = serde_json::to_value(MemberSteelDgnParams::invoke(&idispatch))?;
-                Ok(o)
-            }
+            Self::MemberSteelDgnParams => unsafe {
+                if variant.Anonymous.Anonymous.vt == VARENUM(0) {
+                    return Ok(json!(Value::Null));
+                }
+                let idispatch = (*variant.Anonymous.Anonymous.Anonymous.ppdispVal)
+                    .clone()
+                    .unwrap();
+                let v = MemberSteelDgnParams::invoke(&idispatch);
+                Ok(json!(v))
+            },
             _ => bail!("to_value method can not be used OutType::Index variant."),
         }
     }

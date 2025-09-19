@@ -1,5 +1,9 @@
 use crate::{
-    openstaad::{app::OpenStaad, bindings::*, execute::execute_method},
+    openstaad::{
+        app::OpenStaad,
+        bindings::*,
+        execute::{self, execute_method},
+    },
     tools::{
         SafeArrayP, invoke_method,
         notify::watch_file_background,
@@ -12,7 +16,8 @@ use anyhow::{Context, Result, anyhow, bail};
 use chrono::format;
 use log::{error, info, warn};
 use serde_json::{Value, json};
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::thread;
+use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 use tauri::{AppHandle, Emitter};
 use windows::Win32::System::{
     Com::{IDispatch, SAFEARRAY},
@@ -959,11 +964,6 @@ pub fn get_load_item_list(app: &mut Staad, loadcase: Value) -> Result<Vec<LoadIt
 }
 
 pub fn analyze(app: &mut Staad, handle: AppHandle) -> Result<Value> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
     handle
         .emit("staad_analysis_start", "Start analysis")
         .map_err(|e| anyhow!(e))?;
@@ -976,19 +976,80 @@ pub fn analyze(app: &mut Staad, handle: AppHandle) -> Result<Value> {
     let log_path = std_path.with_extension("log");
     let _watcher_handle = watch_file_background(&log_path, handle.clone());
 
-    let code_result = execute_method(app, "AnalyzeEx", &[1.into(), 0.into(), 1.into()]);
-    match code_result {
-        Ok(code) => {
-            let _ = handle
-                .emit("staad_analysis_complete", &code)
-                .map_err(|e| anyhow!(e));
-            Ok(code)
-        }
-        Err(err) => {
-            let _ = handle
-                .emit("staad_analysis_error", err.to_string())
-                .map_err(|e| anyhow!(e));
-            bail!(err)
+    let _ = execute_method(app, "AnalyzeEx", &[1.into(), 0.into(), 1.into()])?;
+    let status = execute_method(
+        app,
+        "GetAnalysisStatus",
+        &[std_file_path.to_string().into()],
+    )?;
+    println!("{:#?}", status);
+
+    // json!(AnalysisStatus::from(code).as_str())
+    Ok(json!(""))
+}
+
+pub fn get_design_results(app: &mut Staad) -> Result<Vec<(MemberSteelDesignResult)>> {
+    let openstaad: &mut OpenStaad = match app {
+        Staad::OpenStaad(v) => v,
+        _ => bail!("Not OpenStaad instance"),
+    };
+
+    let geo = openstaad.get_geometry()?;
+    let geometry = Staad::Geometry(Arc::clone(&geo));
+    let dsg = openstaad.get_design()?;
+    let design = Staad::Design(Arc::clone(&dsg));
+    let out = openstaad.get_output()?;
+    let output = Staad::Output(Arc::clone(&out));
+
+    let beam_list_value = execute_method(&geometry, "GetBeamList", &[])?;
+    let beam_list = beam_list_value
+        .as_array()
+        .context("Context err: beam_list")?;
+
+    let dgn_code = execute_method(&design, "GetDesignBriefCode", &[1.into()])?;
+    let is_aisc_2016 = json!(1067) == dgn_code;
+
+    let mut blk_name = String::new();
+    if is_aisc_2016 {
+        let blk_name_result = execute_method(
+            &output,
+            "GetSteelDesignParameterBlockNameByIndex",
+            &[0.into()],
+        )?;
+        let blk_name_str = blk_name_result[1]
+            .as_str()
+            .context("Context err: blk_name")?;
+        blk_name = blk_name_str.to_string();
+    }
+
+    let mut list = vec![];
+    for n in beam_list {
+        let id = n.clone();
+        let beam_id = id.as_i64().context("Context err: sec_ref")? as i32;
+
+        if is_aisc_2016 {
+            let count_result = execute_method(&output, "GetSteelDesignParameterBlockCount", &[])?;
+            let count = count_result.as_i64().context("Context err: count")? as i32;
+            if count > 0 {
+                let dgn_results = execute_method(
+                    &output,
+                    "GetMultipleMemberSteelDesignResults",
+                    &[blk_name.to_string().into(), beam_id.into()],
+                )?;
+                let ratio_result = execute_method(
+                    &output,
+                    "GetMultipleMemberSteelDesignMaxRatio",
+                    &[beam_id.into()],
+                )?;
+                let mut row = MemberSteelDesignResult::from(id, dgn_results);
+                row.critical_ratio = ratio_result[1].clone();
+                list.push(row)
+            }
+        } else {
+            let dgn_results =
+                execute_method(&output, "GetMemberSteelDesignResults", &[beam_id.into()])?;
+            list.push(MemberSteelDesignResult::from(id, dgn_results))
         }
     }
+    Ok(list)
 }
