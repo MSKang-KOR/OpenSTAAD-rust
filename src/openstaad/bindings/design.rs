@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use windows::Win32::System::{
@@ -5,7 +6,7 @@ use windows::Win32::System::{
     Variant::{VARIANT, VariantToInt32, VariantToStringAlloc},
 };
 
-use crate::tools::invoke_method;
+use crate::tools::{invoke_method, unit::round_with_factor};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MemberSteelDgnParams {
@@ -75,7 +76,12 @@ pub struct MemberSteelDesignResult {
 }
 
 impl MemberSteelDesignResult {
-    pub fn from(member: Value, results: Value) -> Self {
+    pub fn new(
+        member: Value,
+        results: Value,
+        length_facotr: f64,
+        force_factor: f64,
+    ) -> Result<Self> {
         let code = results[1].clone();
         if code == json!("360-16 L") {
             let status = results[2].clone();
@@ -87,7 +93,7 @@ impl MemberSteelDesignResult {
             let design_section = results[7].clone();
             let design_force = Value::Null;
             let kl_by_r = Value::Null;
-            Self {
+            Ok(Self {
                 member,
                 code,
                 status,
@@ -99,19 +105,24 @@ impl MemberSteelDesignResult {
                 design_section,
                 design_force,
                 kl_by_r,
-            }
+            })
         } else {
-            let code = results[1].clone();
             let status = results[2].clone();
             let critical_ratio = results[3].clone();
             let allowabale_ratio = results[4].clone();
             let critical_load_case = results[5].clone();
-            let critical_section = results[6].clone();
+            let critical_section = json!(round_with_factor(&results[6], length_facotr, 6)?);
             let critical_clause = results[7].clone();
             let design_section = results[8].clone();
-            let design_force = results[9].clone();
+            let forces = results[9].as_array().context("Context err: design_force")?;
+            let design_force = json!(
+                forces
+                    .iter()
+                    .map(|v| round_with_factor(&v, force_factor, 6))
+                    .collect::<Result<Value>>()?
+            );
             let kl_by_r = results[10].clone();
-            Self {
+            Ok(Self {
                 member,
                 code,
                 status,
@@ -123,7 +134,7 @@ impl MemberSteelDesignResult {
                 design_section,
                 design_force,
                 kl_by_r,
-            }
+            })
         }
     }
 }

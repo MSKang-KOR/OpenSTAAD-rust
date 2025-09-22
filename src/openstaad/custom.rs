@@ -1001,6 +1001,9 @@ pub fn get_design_results(app: &mut Staad) -> Result<Vec<(MemberSteelDesignResul
     let out = openstaad.get_output()?;
     let output = Staad::Output(Arc::clone(&out));
 
+    let (lunit, funit) = get_units(&openstaad.dispatch)?;
+    let (lf, ff) = get_unit_factors(&openstaad.dispatch, lunit.as_str(), funit.as_str())?;
+
     let beam_list_value = execute_method(&geometry, "GetBeamList", &[])?;
     let beam_list = beam_list_value
         .as_array()
@@ -1041,14 +1044,14 @@ pub fn get_design_results(app: &mut Staad) -> Result<Vec<(MemberSteelDesignResul
                     "GetMultipleMemberSteelDesignMaxRatio",
                     &[beam_id.into()],
                 )?;
-                let mut row = MemberSteelDesignResult::from(id, dgn_results);
+                let mut row = MemberSteelDesignResult::new(id, dgn_results, lf, ff)?;
                 row.critical_ratio = ratio_result[1].clone();
                 list.push(row)
             }
         } else {
             let dgn_results =
                 execute_method(&output, "GetMemberSteelDesignResults", &[beam_id.into()])?;
-            list.push(MemberSteelDesignResult::from(id, dgn_results))
+            list.push(MemberSteelDesignResult::new(id, dgn_results, lf, ff)?)
         }
     }
     Ok(list)

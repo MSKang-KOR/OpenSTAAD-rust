@@ -446,6 +446,10 @@ fn handle_custom_method(
                 let v = analyze(instance, handle).map_err(|e| e.to_string())?;
                 serde_json::to_value(v).map_err(|e| e.to_string())
             }
+            "get_design_results" => {
+                let v = get_design_results(instance).map_err(|e| e.to_string())?;
+                serde_json::to_value(v).map_err(|e| e.to_string())
+            }
             _ => return Err(format!("Invalid custom method name: {}", method)),
         },
         _ => Err(format!("OpenStaad instance is not initialized: {}", id)),
