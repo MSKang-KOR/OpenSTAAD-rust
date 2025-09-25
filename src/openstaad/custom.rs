@@ -62,11 +62,7 @@ fn get_unit_factors(app: &IDispatch, lunit: &str, funit: &str) -> Result<(f64, f
     }
 }
 
-pub fn get_node_table(app: &mut Staad) -> Result<Vec<NodeTableRow>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
+pub fn get_node_table(openstaad: &mut OpenStaad) -> Result<Vec<NodeTableRow>> {
     let geo = openstaad.get_geometry()?;
 
     let (lunit, funit) = get_units(&openstaad.dispatch)?;
@@ -110,12 +106,7 @@ pub fn get_node_table(app: &mut Staad) -> Result<Vec<NodeTableRow>> {
     }
 }
 
-pub fn get_beam_table(app: &mut Staad) -> Result<Vec<BeamTableRow>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_beam_table(openstaad: &mut OpenStaad) -> Result<Vec<BeamTableRow>> {
     let geo = openstaad.get_geometry()?;
     let prop = openstaad.get_property()?;
 
@@ -178,12 +169,7 @@ pub fn get_beam_table(app: &mut Staad) -> Result<Vec<BeamTableRow>> {
     }
 }
 
-pub fn get_section_list(app: &mut Staad) -> Result<Vec<SectionObj>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_section_list(openstaad: &mut OpenStaad) -> Result<Vec<SectionObj>> {
     // let geo = openstaad.get_geometry()?;
     let prop = openstaad.get_property()?;
     let property = Staad::Property(Arc::clone(&prop));
@@ -222,12 +208,7 @@ pub fn get_section_list(app: &mut Staad) -> Result<Vec<SectionObj>> {
     Ok(tb)
 }
 
-pub fn get_section_property_tables(app: &mut Staad) -> Result<Vec<(String, Value)>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_section_property_tables(openstaad: &mut OpenStaad) -> Result<Vec<(String, Value)>> {
     // let geo = openstaad.get_geometry()?;
     let prop = openstaad.get_property()?;
     let property = Staad::Property(Arc::clone(&prop));
@@ -289,12 +270,7 @@ pub fn get_section_property_tables(app: &mut Staad) -> Result<Vec<(String, Value
     Ok(tables)
 }
 
-pub fn get_beta_list(app: &mut Staad) -> Result<Vec<BetaObj>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_beta_list(openstaad: &mut OpenStaad) -> Result<Vec<BetaObj>> {
     let geo = openstaad.get_geometry()?;
     let geometry = Staad::Geometry(Arc::clone(&geo));
     let prop = openstaad.get_property()?;
@@ -336,12 +312,7 @@ pub fn get_beta_list(app: &mut Staad) -> Result<Vec<BetaObj>> {
     Ok(list)
 }
 
-pub fn get_isotropic_material_list(app: &mut Staad) -> Result<Vec<IsotropicMaterialObj>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_isotropic_material_list(openstaad: &mut OpenStaad) -> Result<Vec<IsotropicMaterialObj>> {
     let prop = openstaad.get_property()?;
     let property = Staad::Property(Arc::clone(&prop));
 
@@ -373,12 +344,9 @@ pub fn get_isotropic_material_list(app: &mut Staad) -> Result<Vec<IsotropicMater
     Ok(list)
 }
 
-pub fn get_orthotropic2d_material_list(app: &mut Staad) -> Result<Vec<IsotropicMaterialObj>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_orthotropic2d_material_list(
+    openstaad: &mut OpenStaad,
+) -> Result<Vec<IsotropicMaterialObj>> {
     let prop = openstaad.get_property()?;
     let property = Staad::Property(Arc::clone(&prop));
 
@@ -415,12 +383,7 @@ pub fn get_orthotropic2d_material_list(app: &mut Staad) -> Result<Vec<IsotropicM
     Ok(list)
 }
 
-pub fn get_specification_list(app: &mut Staad) -> Result<Vec<SpecificationObj>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_specification_list(openstaad: &mut OpenStaad) -> Result<Vec<SpecificationObj>> {
     let geo = openstaad.get_geometry()?;
     let geometry = Staad::Geometry(Arc::clone(&geo));
     let prop = openstaad.get_property()?;
@@ -566,12 +529,7 @@ pub fn get_specification_list(app: &mut Staad) -> Result<Vec<SpecificationObj>> 
     Ok(list)
 }
 
-pub fn get_support_list(app: &mut Staad) -> Result<Vec<SupportObj>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_support_list(openstaad: &mut OpenStaad) -> Result<Vec<SupportObj>> {
     // let geo = openstaad.get_geometry()?;
     // let geometry = Staad::Geometry(Arc::clone(&geo));
     let spt = openstaad.get_support()?;
@@ -626,12 +584,7 @@ pub fn get_support_list(app: &mut Staad) -> Result<Vec<SupportObj>> {
     Ok(list)
 }
 
-pub fn get_reference_load_list(app: &mut Staad) -> Result<Vec<PrimiryLoadObj>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_reference_load_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoadObj>> {
     let ld = openstaad.get_load()?;
     let load = Staad::Load(Arc::clone(&ld));
 
@@ -654,12 +607,7 @@ pub fn get_reference_load_list(app: &mut Staad) -> Result<Vec<PrimiryLoadObj>> {
     Ok(list)
 }
 
-pub fn get_load_case_list(app: &mut Staad) -> Result<Vec<PrimiryLoadObj>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_load_case_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoadObj>> {
     let ld = openstaad.get_load()?;
     let load = Staad::Load(Arc::clone(&ld));
 
@@ -682,12 +630,7 @@ pub fn get_load_case_list(app: &mut Staad) -> Result<Vec<PrimiryLoadObj>> {
     Ok(list)
 }
 
-pub fn get_load_item_list(app: &mut Staad, loadcase: Value) -> Result<Vec<LoadItemObj>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<Vec<LoadItemObj>> {
     let ld = openstaad.get_load()?;
     let load = Staad::Load(Arc::clone(&ld));
 
@@ -963,12 +906,13 @@ pub fn get_load_item_list(app: &mut Staad, loadcase: Value) -> Result<Vec<LoadIt
     Ok(list)
 }
 
-pub fn analyze(app: &mut Staad, handle: AppHandle) -> Result<Value> {
+pub fn analyze(openstaad: &mut OpenStaad, handle: AppHandle) -> Result<Value> {
     handle
         .emit("staad_analysis_start", "Start analysis")
         .map_err(|e| anyhow!(e))?;
 
-    let std_file_path_val = execute_method(app, "GetSTAADFile", &[true.into()])?;
+    let instance = Staad::OpenStaad(openstaad.clone());
+    let std_file_path_val = execute_method(&instance, "GetSTAADFile", &[true.into()])?;
     let std_file_path = std_file_path_val
         .as_str()
         .context("Context err: std_file_path")?;
@@ -976,9 +920,9 @@ pub fn analyze(app: &mut Staad, handle: AppHandle) -> Result<Value> {
     let log_path = std_path.with_extension("log");
     let _watcher_handle = watch_file_background(&log_path, handle.clone());
 
-    let _ = execute_method(app, "AnalyzeEx", &[1.into(), 0.into(), 1.into()])?;
+    let _ = execute_method(&instance, "AnalyzeEx", &[1.into(), 0.into(), 1.into()])?;
     let status = execute_method(
-        app,
+        &instance,
         "GetAnalysisStatus",
         &[std_file_path.to_string().into()],
     )?;
@@ -988,12 +932,7 @@ pub fn analyze(app: &mut Staad, handle: AppHandle) -> Result<Value> {
     Ok(json!(""))
 }
 
-pub fn get_design_results(app: &mut Staad) -> Result<Vec<(MemberSteelDesignResult)>> {
-    let openstaad: &mut OpenStaad = match app {
-        Staad::OpenStaad(v) => v,
-        _ => bail!("Not OpenStaad instance"),
-    };
-
+pub fn get_design_results(openstaad: &mut OpenStaad) -> Result<Vec<(MemberSteelDesignResult)>> {
     let geo = openstaad.get_geometry()?;
     let geometry = Staad::Geometry(Arc::clone(&geo));
     let dsg = openstaad.get_design()?;
