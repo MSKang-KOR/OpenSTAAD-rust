@@ -63,10 +63,11 @@ fn get_unit_factors(app: &IDispatch, lunit: &str, funit: &str) -> Result<(f64, f
 }
 
 pub fn get_node_table(openstaad: &mut OpenStaad) -> Result<Vec<NodeTableRow>> {
+    let root = openstaad.get_root()?;
     let geo = openstaad.get_geometry()?;
 
-    let (lunit, funit) = get_units(&openstaad.dispatch)?;
-    let (lf, ff) = get_unit_factors(&openstaad.dispatch, lunit.as_str(), funit.as_str())?;
+    let (lunit, funit) = get_units(&root.dispatch)?;
+    let (lf, ff) = get_unit_factors(&root.dispatch, lunit.as_str(), funit.as_str())?;
 
     unsafe {
         let node_count_var = invoke_method(&geo.dispatch, "GetNodeCount", &mut [])?;
@@ -107,11 +108,12 @@ pub fn get_node_table(openstaad: &mut OpenStaad) -> Result<Vec<NodeTableRow>> {
 }
 
 pub fn get_beam_table(openstaad: &mut OpenStaad) -> Result<Vec<BeamTableRow>> {
+    let root = openstaad.get_root()?;
     let geo = openstaad.get_geometry()?;
     let prop = openstaad.get_property()?;
 
-    let (lunit, funit) = get_units(&openstaad.dispatch)?;
-    let (lf, ff) = get_unit_factors(&openstaad.dispatch, lunit.as_str(), funit.as_str())?;
+    let (lunit, funit) = get_units(&root.dispatch)?;
+    let (lf, ff) = get_unit_factors(&root.dispatch, lunit.as_str(), funit.as_str())?;
 
     unsafe {
         let beam_count_var = invoke_method(&geo.dispatch, "GetMemberCount", &mut [])?;
@@ -209,11 +211,11 @@ pub fn get_section_list(openstaad: &mut OpenStaad) -> Result<Vec<SectionObj>> {
 }
 
 pub fn get_section_property_tables(openstaad: &mut OpenStaad) -> Result<Vec<(String, Value)>> {
-    // let geo = openstaad.get_geometry()?;
+    let root = openstaad.get_root()?;
     let prop = openstaad.get_property()?;
     let property = Staad::Property(Arc::clone(&prop));
 
-    let (lf, ff) = get_units(&openstaad.dispatch)?;
+    let (lf, ff) = get_units(&root.dispatch)?;
 
     let section_list_value = execute_method(&property, "GetSectionPropertyList", &[])?;
     let section_list = section_list_value[1]
@@ -383,7 +385,7 @@ pub fn get_orthotropic2d_material_list(
     Ok(list)
 }
 
-pub fn get_specification_list(openstaad: &mut OpenStaad) -> Result<Vec<SpecificationObj>> {
+pub fn get_specification_list(openstaad: &mut OpenStaad) -> Result<Vec<Value>> {
     let geo = openstaad.get_geometry()?;
     let geometry = Staad::Geometry(Arc::clone(&geo));
     let prop = openstaad.get_property()?;
@@ -397,7 +399,7 @@ pub fn get_specification_list(openstaad: &mut OpenStaad) -> Result<Vec<Specifica
         .context("Context err: beam_list")?;
 
     let to_round_decimal = 4;
-    let mut spec_map: HashMap<Value, (Value, Value)> = HashMap::new();
+    let mut spec_map: HashMap<Value, Specification> = HashMap::new();
     for n in beam_list {
         let id = n.clone();
         let beam_id = id.as_i64().context("Context err: sec_ref")? as i32;
@@ -425,6 +427,7 @@ pub fn get_specification_list(openstaad: &mut OpenStaad) -> Result<Vec<Specifica
                         _ => bail!(""),
                     };
 
+                    let mut is_partial_moment = true;
                     let mut name_details: Vec<String> = Vec::new();
                     if let Value::Array(arr) = &release_arr_val {
                         if arr.contains(&ReleaseType::MP.as_value()) {
@@ -449,6 +452,7 @@ pub fn get_specification_list(openstaad: &mut OpenStaad) -> Result<Vec<Specifica
                                 }
                             }
                         } else {
+                            is_partial_moment = false;
                             for idx in 0..6 as usize {
                                 let release_val = arr[idx].clone();
                                 if ReleaseType::Spring.as_value() == release_val {
@@ -487,14 +491,29 @@ pub fn get_specification_list(openstaad: &mut OpenStaad) -> Result<Vec<Specifica
                     let name = json!(name_details.join(" "));
                     let spec = spec_map.get_mut(&name);
                     match spec {
-                        Some((type_code, json_arr)) => {
-                            let vec = json_arr
-                                .as_array_mut()
-                                .context("Context err: beta angle json array")?;
-                            vec.push(id.clone());
+                        Some(_spec) => {
+                            if let Specification::Release(_release) = _spec {
+                                let vec = _release
+                                    .assigned
+                                    .as_array_mut()
+                                    .context("Context err: beta angle json array")?;
+                                vec.push(id.clone());
+                            }
                         }
                         None => {
-                            spec_map.insert(name, (spec_code.clone(), json!([beam_id])));
+                            let _spec = Specification::Release(Release {
+                                id: 0,
+                                name: name.clone(),
+                                r#type: spec_code.clone(),
+                                assigned: json!([beam_id]),
+                                location: loca,
+                                is_partial_moment,
+                                release_array: release_arr_val.clone(),
+                                spring_array: spring_arr_val.clone(),
+                                mp_array: mp_arr_val.clone(),
+                                mp: mp_val.clone(),
+                            });
+                            spec_map.insert(name, _spec);
                         }
                     }
                 }
@@ -505,26 +524,35 @@ pub fn get_specification_list(openstaad: &mut OpenStaad) -> Result<Vec<Specifica
             let name = json!("MEMBER TRUSS");
             let spec = spec_map.get_mut(&name);
             match spec {
-                Some((type_code, json_arr)) => {
-                    let vec = json_arr
-                        .as_array_mut()
-                        .context("Context err: beta angle json array")?;
-                    vec.push(id.clone());
+                Some(_spec) => {
+                    if let Specification::Truss(_truss) = _spec {
+                        let vec = _truss
+                            .assigned
+                            .as_array_mut()
+                            .context("Context err: beta angle json array")?;
+                        vec.push(id.clone());
+                    }
                 }
                 None => {
-                    spec_map.insert(name, (spec_code.clone(), json!([beam_id])));
+                    let _spec = Specification::Truss(Truss {
+                        id: 0,
+                        name: name.clone(),
+                        r#type: spec_code,
+                        assigned: json!([beam_id]),
+                    });
+                    spec_map.insert(name, _spec);
                 }
             }
         }
     }
 
-    let mut list: Vec<SpecificationObj> = Vec::new();
-    spec_map.iter().for_each(|(k, (type_code, assigned))| {
-        list.push(SpecificationObj {
-            name: k.clone(),
-            r#type: type_code.clone(),
-            assigned: assigned.clone(),
-        });
+    let mut list: Vec<Value> = Vec::new();
+    let keys: Vec<_> = spec_map.keys().cloned().collect();
+    keys.iter().enumerate().for_each(|(i, k)| {
+        if let Some(_spec) = spec_map.get_mut(k) {
+            _spec.set_id((i as u32) + 1);
+            list.push(_spec.clone().as_value());
+        }
     });
     Ok(list)
 }
@@ -631,12 +659,13 @@ pub fn get_load_case_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoadOb
 }
 
 pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<Vec<LoadItemObj>> {
+    let root = openstaad.get_root()?;
     let ld = openstaad.get_load()?;
     let load = Staad::Load(Arc::clone(&ld));
 
     let num_decimal = 3;
-    let (lunit, funit) = get_units(&openstaad.dispatch)?;
-    let (lf, ff) = get_unit_factors(&openstaad.dispatch, lunit.as_str(), funit.as_str())?;
+    let (lunit, funit) = get_units(&root.dispatch)?;
+    let (lf, ff) = get_unit_factors(&root.dispatch, lunit.as_str(), funit.as_str())?;
 
     let lc_id = loadcase.as_u64().context("Context err: lc_id")? as i32;
     let _ = execute_method(&load, "SetLoadActive", &[lc_id.into()]);
@@ -911,7 +940,8 @@ pub fn analyze(openstaad: &mut OpenStaad, handle: AppHandle) -> Result<Value> {
         .emit("staad_analysis_start", "Start analysis")
         .map_err(|e| anyhow!(e))?;
 
-    let instance = Staad::OpenStaad(openstaad.clone());
+    let root = openstaad.get_root()?;
+    let instance = Staad::Root(root);
     let std_file_path_val = execute_method(&instance, "GetSTAADFile", &[true.into()])?;
     let std_file_path = std_file_path_val
         .as_str()
@@ -933,6 +963,7 @@ pub fn analyze(openstaad: &mut OpenStaad, handle: AppHandle) -> Result<Value> {
 }
 
 pub fn get_design_results(openstaad: &mut OpenStaad) -> Result<Vec<(MemberSteelDesignResult)>> {
+    let root = openstaad.get_root()?;
     let geo = openstaad.get_geometry()?;
     let geometry = Staad::Geometry(Arc::clone(&geo));
     let dsg = openstaad.get_design()?;
@@ -940,8 +971,8 @@ pub fn get_design_results(openstaad: &mut OpenStaad) -> Result<Vec<(MemberSteelD
     let out = openstaad.get_output()?;
     let output = Staad::Output(Arc::clone(&out));
 
-    let (lunit, funit) = get_units(&openstaad.dispatch)?;
-    let (lf, ff) = get_unit_factors(&openstaad.dispatch, lunit.as_str(), funit.as_str())?;
+    let (lunit, funit) = get_units(&root.dispatch)?;
+    let (lf, ff) = get_unit_factors(&root.dispatch, lunit.as_str(), funit.as_str())?;
 
     let beam_list_value = execute_method(&geometry, "GetBeamList", &[])?;
     let beam_list = beam_list_value

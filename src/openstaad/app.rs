@@ -19,6 +19,7 @@ use crate::openstaad::geometry::Geometry;
 use crate::openstaad::load::Load;
 use crate::openstaad::output::Output;
 use crate::openstaad::property::Property;
+use crate::openstaad::root::Root;
 use crate::openstaad::support::Support;
 use crate::tools::invoke::{invoke_method, invoke_property};
 use crate::tools::value_types::{InType as ptype, MethodSignature, OutType as rtype};
@@ -27,10 +28,9 @@ use std::{collections::HashMap, sync::Arc, thread, time::Duration};
 #[derive(Debug, Clone, Serialize)]
 pub struct OpenStaad {
     #[serde(skip)]
-    pub dispatch: IDispatch,
     pub id: u32,
     #[serde(skip)]
-    pub methods: HashMap<String, MethodSignature>,
+    pub root: Option<Arc<Root>>,
     pub command: Option<Arc<Command>>,
     pub design: Option<Arc<Design>>,
     pub geometry: Option<Arc<Geometry>>,
@@ -44,12 +44,9 @@ impl OpenStaad {
     /// Connects to OpenSTAAD and initializes the application.
     pub fn new(system_path: String, std_path: String) -> Result<Self> {
         let (id, dispatch) = initialize(system_path, std_path)?;
-        let mut methods: HashMap<String, MethodSignature> = HashMap::new();
-        let _ = set_methods(&mut methods);
         let instance = Self {
-            dispatch,
             id,
-            methods,
+            root: Some(Arc::new(Root::new(dispatch))),
             command: None,
             design: None,
             geometry: None,
@@ -74,12 +71,9 @@ impl OpenStaad {
             }
         };
 
-        let mut methods = HashMap::new();
-        let _ = set_methods(&mut methods);
         let instance = Self {
-            dispatch,
             id,
-            methods,
+            root: Some(Arc::new(Root::new(dispatch))),
             command: None,
             design: None,
             geometry: None,
@@ -91,10 +85,15 @@ impl OpenStaad {
         Ok(instance)
     }
 
+    pub fn get_root(&mut self) -> Result<Arc<Root>> {
+        info!("Accessing the 'Root' property...");
+        Ok(Arc::clone(self.root.as_ref().unwrap()))
+    }
     pub fn get_command(&mut self) -> Result<Arc<Command>> {
         info!("Accessing the 'Command' property...");
         if self.command.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Command")? };
+            let dispatch =
+                unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Command")? };
             self.command = Some(Arc::new(Command::new(dispatch)));
         }
         Ok(Arc::clone(self.command.as_ref().unwrap()))
@@ -102,7 +101,8 @@ impl OpenStaad {
     pub fn get_design(&mut self) -> Result<Arc<Design>> {
         info!("Accessing the 'Design' property...");
         if self.design.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Design")? };
+            let dispatch =
+                unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Design")? };
             self.design = Some(Arc::new(Design::new(dispatch)));
         }
         Ok(Arc::clone(self.design.as_ref().unwrap()))
@@ -110,7 +110,8 @@ impl OpenStaad {
     pub fn get_geometry(&mut self) -> Result<Arc<Geometry>> {
         info!("Accessing the 'Geometry' property...");
         if self.geometry.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Geometry")? };
+            let dispatch =
+                unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Geometry")? };
             self.geometry = Some(Arc::new(Geometry::new(dispatch)));
         }
         Ok(Arc::clone(self.geometry.as_ref().unwrap()))
@@ -118,7 +119,8 @@ impl OpenStaad {
     pub fn get_load(&mut self) -> Result<Arc<Load>> {
         info!("Accessing the 'Load' property...");
         if self.load.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Load")? };
+            let dispatch =
+                unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Load")? };
             self.load = Some(Arc::new(Load::new(dispatch)));
         }
         Ok(Arc::clone(self.load.as_ref().unwrap()))
@@ -126,7 +128,8 @@ impl OpenStaad {
     pub fn get_output(&mut self) -> Result<Arc<Output>> {
         info!("Accessing the 'Output' property...");
         if self.output.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Output")? };
+            let dispatch =
+                unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Output")? };
             self.output = Some(Arc::new(Output::new(dispatch)));
         }
         Ok(Arc::clone(self.output.as_ref().unwrap()))
@@ -134,7 +137,8 @@ impl OpenStaad {
     pub fn get_property(&mut self) -> Result<Arc<Property>> {
         info!("Accessing the 'Property' property...");
         if self.property.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Property")? };
+            let dispatch =
+                unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Property")? };
             self.property = Some(Arc::new(Property::new(dispatch)));
         }
         Ok(Arc::clone(self.property.as_ref().unwrap()))
@@ -142,7 +146,8 @@ impl OpenStaad {
     pub fn get_support(&mut self) -> Result<Arc<Support>> {
         info!("Accessing the 'Support' property...");
         if self.support.is_none() {
-            let dispatch = unsafe { invoke_property(&self.dispatch, "Support")? };
+            let dispatch =
+                unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Support")? };
             self.support = Some(Arc::new(Support::new(dispatch)));
         }
         Ok(Arc::clone(self.support.as_ref().unwrap()))
@@ -254,9 +259,9 @@ fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)>
                     let _ = std::process::Command::new("taskkill")
                         .args(&["/PID", _pid.to_string().as_str()])
                         .spawn()?;
-                    unsafe {
-                        let _ = CoUninitialize();
-                    }
+                    // unsafe {
+                    //     let _ = CoUninitialize();
+                    // }
                     bail!(
                         "Staas.Pro가 정상적으로 실행되지 않았거나 STD 파일을 열 수 없어 종료합니다."
                     );
@@ -363,319 +368,6 @@ pub fn waiting(dispatch: &IDispatch) -> Result<bool> {
             }
         }
     }
-}
-
-fn set_methods(store: &mut HashMap<String, MethodSignature>) {
-    // Root OpenSTAAD API Methods (Alphabetical)
-    store.insert(
-        "Analyze".to_string(),
-        MethodSignature {
-            inputs: vec![],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "AnalyzeEx".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Int, ptype::Int, ptype::Int],
-            outputs: vec![rtype::Int],
-        },
-    );
-    store.insert(
-        "AnalyzeModel".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Int],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "CloseSTAADFile".to_string(),
-        MethodSignature {
-            inputs: vec![],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "CreateNamedView".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Str, ptype::Int, ptype::MutInt],
-            outputs: vec![rtype::Index(2)],
-        },
-    );
-    store.insert(
-        "GetAnalysisStatus".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Str, ptype::MutInt, ptype::MutInt, ptype::MutDouble],
-            outputs: vec![
-                rtype::Int,
-                rtype::Index(1),
-                rtype::Index(2),
-                rtype::Index(3),
-            ],
-        },
-    );
-    store.insert(
-        "GetApplicationVersion".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::MutInt, ptype::MutInt, ptype::MutInt, ptype::MutInt],
-            outputs: vec![
-                rtype::Str,
-                rtype::Index(0),
-                rtype::Index(1),
-                rtype::Index(2),
-                rtype::Index(3),
-            ],
-        },
-    );
-    store.insert(
-        "GetBaseUnit".to_string(),
-        MethodSignature {
-            inputs: vec![],
-            outputs: vec![rtype::Int],
-        },
-    );
-    store.insert(
-        "GetCONNECTEDProjectInfo".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::MutStr, ptype::MutStr],
-            outputs: vec![rtype::Int, rtype::Index(0), rtype::Index(1)],
-        },
-    );
-    store.insert(
-        "GetErrorMessage".to_string(),
-        MethodSignature {
-            inputs: vec![],
-            outputs: vec![rtype::Str],
-        },
-    );
-    store.insert(
-        "GetFullJobInfo".to_string(),
-        MethodSignature {
-            inputs: vec![
-                ptype::MutStr,
-                ptype::MutStr,
-                ptype::MutStr,
-                ptype::MutStr,
-                ptype::MutStr,
-                ptype::MutStr,
-                ptype::MutStr,
-                ptype::MutStr,
-                ptype::MutStr,
-                ptype::MutStr,
-                ptype::MutStr,
-                ptype::MutStr,
-            ],
-            outputs: vec![
-                rtype::Index(0),
-                rtype::Index(1),
-                rtype::Index(2),
-                rtype::Index(3),
-                rtype::Index(4),
-                rtype::Index(5),
-                rtype::Index(6),
-                rtype::Index(7),
-                rtype::Index(8),
-                rtype::Index(9),
-                rtype::Index(10),
-                rtype::Index(11),
-            ],
-        },
-    );
-    store.insert(
-        "GetInputUnitForForce".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::MutStr],
-            outputs: vec![rtype::Int, rtype::Index(0)],
-        },
-    );
-    store.insert(
-        "GetInputUnitForLength".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::MutStr],
-            outputs: vec![rtype::Int, rtype::Index(0)],
-        },
-    );
-    store.insert(
-        "GetMainWindowHandle".to_string(),
-        MethodSignature {
-            inputs: vec![],
-            outputs: vec![rtype::Int],
-        },
-    );
-    store.insert(
-        "GetProcessHandle".to_string(),
-        MethodSignature {
-            inputs: vec![],
-            outputs: vec![rtype::Int],
-        },
-    );
-    store.insert(
-        "GetProcessId".to_string(),
-        MethodSignature {
-            inputs: vec![],
-            outputs: vec![rtype::Int],
-        },
-    );
-    store.insert(
-        "GetShortJobInfo".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::MutStr, ptype::MutStr, ptype::MutStr],
-            outputs: vec![rtype::Index(0), rtype::Index(1), rtype::Index(2)],
-        },
-    );
-    store.insert(
-        "GetSTAADFile".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::MutStr, ptype::Bool],
-            outputs: vec![rtype::Index(0)],
-        },
-    );
-    store.insert(
-        "GetSTAADFileFolder".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::MutStr],
-            outputs: vec![rtype::Index(0)],
-        },
-    );
-    store.insert(
-        "IsAnalyzing".to_string(),
-        MethodSignature {
-            inputs: vec![],
-            outputs: vec![rtype::Int],
-        },
-    );
-    store.insert(
-        "IsPhysicalModel".to_string(),
-        MethodSignature {
-            inputs: vec![],
-            outputs: vec![rtype::Int],
-        },
-    );
-    store.insert(
-        "ModifyNamedView".to_string(),
-        MethodSignature {
-            inputs: vec![
-                ptype::Str,
-                ptype::Int,
-                ptype::Int,
-                ptype::Int,
-                ptype::Int,
-                ptype::MutInt,
-            ],
-            outputs: vec![rtype::Index(5)],
-        },
-    );
-    store.insert(
-        "NewSTAADFile".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Str, ptype::Int, ptype::Int],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "OpenSTAADFile".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Str],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "Quit".to_string(),
-        MethodSignature {
-            inputs: vec![],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "RemoveNamedView".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Str, ptype::MutInt],
-            outputs: vec![rtype::Index(1)],
-        },
-    );
-    store.insert(
-        "SaveModel".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Bool],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "SaveNamedView".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Str, ptype::MutInt],
-            outputs: vec![rtype::Index(1)],
-        },
-    );
-    store.insert(
-        "SetCONNECTEDProjectInfo".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Str, ptype::Str],
-            outputs: vec![rtype::Int],
-        },
-    );
-    store.insert(
-        "SetFullJobInfo".to_string(),
-        MethodSignature {
-            inputs: vec![
-                ptype::Str,
-                ptype::Str,
-                ptype::Str,
-                ptype::Str,
-                ptype::Str,
-                ptype::Str,
-                ptype::Str,
-                ptype::Str,
-                ptype::Str,
-                ptype::Str,
-                ptype::Str,
-                ptype::Str,
-            ],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "SetInputUnitForForce".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Int],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "SetInputUnitForLength".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Int],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "SetInputUnits".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Int, ptype::Int],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "SetShortJobInfo".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Str, ptype::Str, ptype::Str],
-            outputs: vec![],
-        },
-    );
-    store.insert(
-        "SetSilentMode".to_string(),
-        MethodSignature {
-            inputs: vec![ptype::Int],
-            outputs: vec![rtype::Int],
-        },
-    );
-    store.insert(
-        "UpdateStructure".to_string(),
-        MethodSignature {
-            inputs: vec![],
-            outputs: vec![],
-        },
-    );
 }
 
 // fn run_no_window(exe_path: String) -> Result<u32> {

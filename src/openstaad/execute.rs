@@ -33,7 +33,7 @@ use crate::{
 
 pub fn execute_method(instance: &Staad, method: &str, params: &[Input]) -> Result<Value> {
     let (app, _methods) = match instance {
-        Staad::OpenStaad(v) => (&v.dispatch, &v.methods),
+        Staad::Root(v) => (&v.dispatch, &v.methods),
         Staad::Geometry(v) => (&v.dispatch, &v.methods),
         Staad::Command(v) => (&v.dispatch, &v.methods),
         Staad::Design(v) => (&v.dispatch, &v.methods),
@@ -345,6 +345,10 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
             }
             "GetMemberReleaseSpec" => {
                 count = 6;
+            }
+            "GetMemberAttributeList" => {
+                let variant = invoke_method(dispatch, "GetMemberAttributeCount", &mut []).unwrap();
+                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
             }
 
             // Support methods

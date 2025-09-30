@@ -54,14 +54,14 @@ pub struct SupportObj {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrimiryLoadObj {
-    pub id: Value,       // i32
-    pub r#type: Value,   // String (ReferenceLoadType Code)
-    pub title: Value,     // String
+    pub id: Value,     // i32
+    pub r#type: Value, // String (ReferenceLoadType Code)
+    pub title: Value,  // String
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LoadItemObj {
     pub id: Value,       // usize
-    pub index: Value,       // usize
+    pub index: Value,    // usize
     pub r#type: Value,   // i8 (LoadItemType Code)
     pub name: Value,     // String
     pub assigned: Value, // Vec<i32>

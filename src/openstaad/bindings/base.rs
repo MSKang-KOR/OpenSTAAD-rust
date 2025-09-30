@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::openstaad::{
     app::OpenStaad, command::Command, design::Design, geometry::Geometry, load::Load,
-    output::Output, property::Property, support::Support,
+    output::Output, property::Property, root::Root, support::Support,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
@@ -59,7 +59,7 @@ impl Axis {
 
 #[derive(Debug, Clone)]
 pub enum Staad {
-    OpenStaad(OpenStaad),
+    Root(Arc<Root>),
     Geometry(Arc<Geometry>),
     Command(Arc<Command>),
     Design(Arc<Design>),
@@ -73,11 +73,11 @@ unsafe impl Send for Staad {}
 unsafe impl Sync for Staad {}
 
 impl Staad {
-    pub fn from_method(app: &mut Staad, method: &str) -> Result<Self> {
-        let openstaad = match app {
-            Self::OpenStaad(p) => p,
-            _ => bail!("from_method::OpenStaad not found"),
-        };
+    pub fn from_method(openstaad: &mut OpenStaad, method: &str) -> Result<Self> {
+        // let openstaad = match app {
+        //     Self::OpenStaad(p) => p,
+        //     _ => bail!("from_method::OpenStaad not found"),
+        // };
         match method {
             "Analyze"
             | "AnalyzeEx"
@@ -114,7 +114,7 @@ impl Staad {
             | "SetInputUnits"
             | "SetShortJobInfo"
             | "SetSilentMode"
-            | "UpdateStructure" => Ok(app.clone()),
+            | "UpdateStructure" => Ok(Staad::Root(openstaad.get_root()?)),
             "DeleteAllAnalysisCommands"
             | "DeleteCheckIrregularitiesCommand"
             | "DeleteCheckSoftStoryCommand"
@@ -378,7 +378,9 @@ impl Staad {
             | "GetMultipleMemberSteelDesignResults"
             | "GetSteelDesignParameterBlockCount"
             | "GetSteelDesignParameterBlockNameByIndex"
-            | "IsMultipleMemberSteelDesignResultsAvailable" => Ok(Staad::Output(openstaad.get_output()?)),
+            | "IsMultipleMemberSteelDesignResultsAvailable" => {
+                Ok(Staad::Output(openstaad.get_output()?))
+            }
             "CreateAnglePropertyFromTable"
             | "CreateBeamPropertyFromTable"
             | "CreateBeamPropertyFromTableComposite"

@@ -16,7 +16,7 @@ use crate::openstaad::app::{self, OpenStaad};
 use crate::openstaad::{bindings::Staad, custom::*, execute::execute_method};
 use crate::tools::{InType, Input, invoke_method};
 
-type StorageType = Arc<Mutex<HashMap<u32, Staad>>>;
+type StorageType = Arc<Mutex<HashMap<u32, OpenStaad>>>;
 pub static STAAD_MANAGER: LazyLock<Mutex<Option<StorageType>>> = LazyLock::new(|| Mutex::new(None));
 
 // Manager 시작
@@ -25,13 +25,14 @@ pub fn start_manager() -> Result<Value, String> {
     if manager.is_some() {
         return Ok(json!("Manager already started"));
     }
-    *manager = Some(Arc::new(Mutex::new(HashMap::<u32, Staad>::new())));
+    *manager = Some(Arc::new(Mutex::new(HashMap::<u32, OpenStaad>::new())));
 
     Ok(json!("Manager started successfully"))
 }
 
 // 특정 Worker에 메시지 전송
 pub fn send(msg_type: String, data: Value, app_handle: AppHandle) -> Result<Value, String> {
+    println!("msg_type: {}", msg_type);
     match msg_type.as_str() {
         "Open" => {
             let params = data["params"]
@@ -46,7 +47,6 @@ pub fn send(msg_type: String, data: Value, app_handle: AppHandle) -> Result<Valu
                 .as_str()
                 .ok_or("Missing std_path parameter")?
                 .to_string();
-
             let openstaad = handle_open(path.clone(), std_path.clone())?;
             let staad_id = openstaad.id;
             {
@@ -59,7 +59,7 @@ pub fn send(msg_type: String, data: Value, app_handle: AppHandle) -> Result<Valu
                     .as_ref()
                     .ok_or("STAAD_STORAGE is not started")?;
                 let mut hashmap = manager_arc.lock().map_err(|e| e.to_string())?;
-                hashmap.insert(staad_id, Staad::OpenStaad(openstaad));
+                hashmap.insert(staad_id, openstaad);
             }
             Ok(json!(staad_id))
         }
@@ -111,22 +111,49 @@ pub fn send(msg_type: String, data: Value, app_handle: AppHandle) -> Result<Valu
             }
             Err(format!("No Staad instance opened in this worker: {}", id))
         }
+        "Quit" => {
+            let manager_guard = STAAD_MANAGER.lock().map_err(|e| e.to_string())?;
+            if manager_guard.is_none() {
+                return Err("STAAD_STORAGE is not started".to_string());
+            }
+            let manager_arc = manager_guard
+                .as_ref()
+                .ok_or("STAAD_STORAGE is not started")?;
+            let mut hashmap = manager_arc.lock().map_err(|e| e.to_string())?;
+            // HashMap의 모든 값에 대해 Quit 메소드 실행
+            for (_id, openstaad) in hashmap.iter_mut() {
+                let method = "Quit";
+                let instance = Staad::from_method(openstaad, method)
+                    .map_err(|e| format!("Staad instance error: {}", e))?;
+                execute_method(&instance, method, &[])
+                    .map_err(|e| format!("Execute method error: {}", e))?;
+            }
+            hashmap.clear();
+            Ok(json!("Quit successfully".to_string()))
+        }
         _ => Err(format!("Invalid message type: {}", msg_type)),
     }
 }
 
 // 완전히 격리된 OpenStaad 생성
 fn handle_open(path: String, std_path: String) -> Result<OpenStaad, String> {
-    let app = OpenStaad::new(path.clone(), std_path.clone()).map_err(|e| e.to_string())?;
+    let mut openstaad =
+        OpenStaad::new(path.clone(), std_path.clone()).map_err(|e| e.to_string())?;
+    let root = openstaad.get_root().map_err(|e| e.to_string())?;
+
     // Silent mode 설정
     let _ = unsafe {
-        invoke_method(&app.dispatch, "SetSilentMode", &mut [VARIANT::from(1)])
+        invoke_method(&root.dispatch, "SetSilentMode", &mut [VARIANT::from(1)])
             .map_err(|e| e.to_string())
     };
-    Ok(app)
+    Ok(openstaad)
 }
 
-fn handle_method(staad: &mut Staad, method: String, params: Vec<Value>) -> Result<Value, String> {
+fn handle_method(
+    staad: &mut OpenStaad,
+    method: String,
+    params: Vec<Value>,
+) -> Result<Value, String> {
     let instance = Staad::from_method(staad, method.as_str()).map_err(|e| e.to_string())?;
     let converted_params =
         convert_to_inputs(&instance, method.as_str(), &params).map_err(|e| e.to_string())?;
@@ -135,71 +162,70 @@ fn handle_method(staad: &mut Staad, method: String, params: Vec<Value>) -> Resul
 }
 
 fn handle_custom_method(
-    staad: &mut Staad,
+    openstaad: &mut OpenStaad,
     method: String,
     params: Vec<Value>,
     handle: AppHandle,
 ) -> Result<Value, String> {
-    let app = match staad {
-        Staad::OpenStaad(v) => Ok(v),
-        _ => Err("Must be OpenStaad instance".to_string()),
-    }?;
-
+    // let openstaad = match staad {
+    //     Staad::OpenStaad(v) => Ok(v),
+    //     _ => Err("Must be OpenStaad instance".to_string()),
+    // }?;
     match method.as_str() {
         "get_node_table" => {
-            let v = get_node_table(app).map_err(|e| e.to_string())?;
+            let v = get_node_table(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_beam_table" => {
-            let v = get_beam_table(app).map_err(|e| e.to_string())?;
+            let v = get_beam_table(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_section_list" => {
-            let v = get_section_list(app).map_err(|e| e.to_string())?;
+            let v = get_section_list(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_section_property_tables" => {
-            let v = get_section_property_tables(app).map_err(|e| e.to_string())?;
+            let v = get_section_property_tables(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_beta_list" => {
-            let v = get_beta_list(app).map_err(|e| e.to_string())?;
+            let v = get_beta_list(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_isotropic_material_list" => {
-            let v = get_isotropic_material_list(app).map_err(|e| e.to_string())?;
+            let v = get_isotropic_material_list(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_orthotropic2d_material_list" => {
-            let v = get_orthotropic2d_material_list(app).map_err(|e| e.to_string())?;
+            let v = get_orthotropic2d_material_list(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_specification_list" => {
-            let v = get_specification_list(app).map_err(|e| e.to_string())?;
+            let v = get_specification_list(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_support_list" => {
-            let v = get_support_list(app).map_err(|e| e.to_string())?;
+            let v = get_support_list(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_reference_load_list" => {
-            let v = get_reference_load_list(app).map_err(|e| e.to_string())?;
+            let v = get_reference_load_list(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_load_case_list" => {
-            let v = get_load_case_list(app).map_err(|e| e.to_string())?;
+            let v = get_load_case_list(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_load_item_list" => {
-            let v = get_load_item_list(app, params[0].clone()).map_err(|e| e.to_string())?;
+            let v = get_load_item_list(openstaad, params[0].clone()).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "analyze" => {
-            let v = analyze(app, handle).map_err(|e| e.to_string())?;
+            let v = analyze(openstaad, handle).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         "get_design_results" => {
-            let v = get_design_results(app).map_err(|e| e.to_string())?;
+            let v = get_design_results(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         _ => return Err(format!("Invalid custom method name: {}", method)),
@@ -208,7 +234,7 @@ fn handle_custom_method(
 
 fn convert_to_inputs(instance: &Staad, method: &str, params: &Vec<Value>) -> Result<Vec<Input>> {
     let methods = match instance {
-        Staad::OpenStaad(v) => &v.methods,
+        Staad::Root(v) => &v.methods,
         Staad::Geometry(v) => &v.methods,
         Staad::Command(v) => &v.methods,
         Staad::Design(v) => &v.methods,

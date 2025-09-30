@@ -13,7 +13,7 @@ fn main() -> Result<()> {
     let system_path =
         "C:\\Program Files\\Bentley\\Engineering\\STAAD.Pro 2025\\STAAD\\Bentley.Staad.exe"
             .to_string();
-    let std_path = "C:\\Users\\kms36\\Downloads\\staa_api_test\\sample.STD";
+    let std_path = "C:\\Users\\kms36\\Downloads\\staa_api_test\\360-PAR-01_Case2.STD";
     // let mut _openstaad = OpenStaad::new(system_path, std_path.to_string()).map_err(|e| {
     //     error!("Failed to create OpenSTAAD instance: {}", e);
     //     e
@@ -22,13 +22,19 @@ fn main() -> Result<()> {
         error!("Failed to create OpenSTAAD instance: {}", e);
         e
     })?;
+    let _root = _openstaad.get_root()?;
     let _output = _openstaad.get_output()?;
     let _geometry = _openstaad.get_geometry()?;
     let _design = _openstaad.get_design()?;
 
-    let mut openstaad = Staad::OpenStaad(_openstaad);
+    let mut root = Staad::Root(_root);
     let mut output = Staad::Output(_output);
     let mut design = Staad::Design(_design);
+
+    match get_specification_list(&mut _openstaad) {
+        Ok(v) => info!("{:#?}", v),
+        Err(e) => warn!("{:#?}", e),
+    }
 
     Ok(())
 }
