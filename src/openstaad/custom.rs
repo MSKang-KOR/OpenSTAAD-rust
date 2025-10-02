@@ -699,16 +699,17 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
 
         let mut assigned: Value = Value::Null;
         if _type.has_assigned() {
-            assigned = execute_method(
+            let assigned_val = execute_method(
                 &load,
                 "GetAssignmentListForLoadType",
                 &[type_code.into(), (cur_idx as i32).into()],
             )?;
+            assigned = assigned_val[1].clone();
         }
 
         let mut is_pass = false;
         let mut name = String::new();
-        match _type {
+        let attribute = match _type {
             LoadItemType::NodalLoad => {
                 let data = execute_method(&load, "GetNodalLoadInfo", &[(cur_idx as i32).into()])?;
                 let loads = data[1].as_array().context("Context err: loads")?;
@@ -735,6 +736,9 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                     }
                 }
                 name = details.join(" ");
+                json!(NodalLoad {
+                    load: loads.clone(),
+                })
             }
             LoadItemType::ConcentratedForce => {
                 tindex = idx.clone();
@@ -756,7 +760,13 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                 let p = round_with_factor(&forces[0], ff, num_decimal)?;
                 let d1 = round_with_factor(&dists[0], lf, num_decimal)?;
                 let d2 = round_with_factor(&dists[1], lf, num_decimal)?;
-                name = format!("CONC {} {} {} {} {},{}", dir, p, d1, d2, funit, lunit);
+                name = format!("CONC {} {} {} {} {},{}", dir, &p, &d1, &d2, funit, lunit);
+                json!(ConcentratedForce {
+                    direction: direction.clone(),
+                    load: p,
+                    d1,
+                    d2,
+                })
             }
             LoadItemType::ConcentratedMoment => {
                 tindex = idx.clone();
@@ -779,6 +789,12 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                 let d1 = round_with_factor(&dists[0], lf, num_decimal)?;
                 let d2 = round_with_factor(&dists[1], lf, num_decimal)?;
                 name = format!("CMOM {} {} {} {} {}/{}", dir, p, d1, d2, funit, lunit);
+                json!(ConcentratedMoment {
+                    direction: direction.clone(),
+                    load: p,
+                    d1,
+                    d2,
+                })
             }
             LoadItemType::UniformForce => {
                 tindex = idx.clone();
@@ -800,12 +816,21 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                     _ => "Invalid Direction",
                 }
                 .to_string();
-                let w = round_with_factor(&forces[0], ff / lf, num_decimal)?;
+                let p = round_with_factor(&forces[0], ff / lf, num_decimal)?;
                 let d1 = round_with_factor(&dists[0], lf, num_decimal)?;
                 let d2 = round_with_factor(&dists[1], lf, num_decimal)?;
                 let d3 = round_with_factor(&dists[2], lf, num_decimal)?;
-
-                name = format!("UNI {} {} {} {} {} {}/{}", dir, w, d1, d2, d3, funit, lunit);
+                name = format!(
+                    "UNI {} {} {} {} {} {}/{}",
+                    dir, &p, &d1, &d2, &d3, funit, lunit
+                );
+                json!(UniformForce {
+                    direction: direction.clone(),
+                    load: p,
+                    d1,
+                    d2,
+                    d3,
+                })
             }
             LoadItemType::UniformMoment => {
                 tindex = idx.clone();
@@ -831,19 +856,27 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                 let d1 = round_with_factor(&dists[0], lf, num_decimal)?;
                 let d2 = round_with_factor(&dists[1], lf, num_decimal)?;
                 let d3 = round_with_factor(&dists[2], lf, num_decimal)?;
-
                 name = format!(
                     "UMOM {} {} {} {} {} {}-{}/{}",
-                    dir, w, d1, d2, d3, funit, lunit, lunit
+                    dir, &w, &d1, &d2, &d3, funit, lunit, lunit
                 );
+                json!(UniformMoment {
+                    direction: direction.clone(),
+                    load: w,
+                    d1,
+                    d2,
+                    d3,
+                })
             }
             LoadItemType::SelfWeight => {
                 tindex = idx.clone();
-                name = "SELFWEIGHT".to_string()
+                name = "SELFWEIGHT".to_string();
+                json!(SelfWeight {})
             }
             LoadItemType::FloorLoadGroup => {
                 tindex = idx.clone();
-                name = "GROUP FLOAD".to_string()
+                name = "GROUP FLOAD".to_string();
+                json!(FloorLoadGroup {})
             }
             LoadItemType::RepeatLoadData => {
                 tindex = cur_idx + 1;
@@ -855,17 +888,21 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                 let count = count_val.as_u64().context("Context err: count")? as usize;
                 let data =
                     execute_method(&load, "GetRepeatLoadByIndex", &[(tindex as i32).into()])?;
-                let ids = &data[1];
-                let factors = &data[2];
+                let cases = data[1].as_array().context("Context err: ids")?;
+                let factors = data[2].as_array().context("Context err: factors")?;
                 let mut details = vec!["REPEAT LOAD".to_string()];
                 for i in 0..count {
                     details.push(format!(
                         "{} {}",
-                        ids[i],
+                        cases[i],
                         round_with_factor(&factors[i], 1., 2)?
                     ));
                 }
                 name = details.join(" ");
+                json!(RepeatLoadData {
+                    cases: cases.clone(),
+                    factors: factors.clone(),
+                })
             }
             LoadItemType::ReferenceLoadData => {
                 let count_val = execute_method(
@@ -876,17 +913,21 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                 let count = count_val.as_u64().context("Context err: count")? as usize;
                 let data =
                     execute_method(&load, "GetReferenceLoadByIndex", &[(cur_idx as i32).into()])?;
-                let ids = &data[1];
-                let factors = &data[2];
+                let cases = data[1].as_array().context("Context err: ids")?;
+                let factors = data[2].as_array().context("Context err: factors")?;
                 let mut details = vec!["REFERENCE LOAD".to_string()];
                 for i in 0..count {
                     details.push(format!(
                         "R{} {}",
-                        ids[i],
+                        cases[i],
                         round_with_factor(&factors[i], 1., 2)?
                     ));
                 }
                 name = details.join(" ");
+                json!(ReferenceLoadData {
+                    cases: cases.clone(),
+                    factors: factors.clone(),
+                })
             }
             LoadItemType::NotionalLoadData => {
                 tindex = cur_idx + 1;
@@ -898,12 +939,12 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                 let count = count_val.as_u64().context("Context err: count")? as usize;
                 let data =
                     execute_method(&load, "GetNotionalLoadByIndex", &[(tindex as i32).into()])?;
-                let ids = &data[1];
-                let factors = &data[2];
-                let dirs = &data[3];
+                let cases = data[1].as_array().context("Context err: ids")?;
+                let factors = data[2].as_array().context("Context err: factors")?;
+                let dirs = data[3].as_array().context("Context err: dirs")?;
                 let mut details = vec!["NOTIONAL LOAD".to_string()];
                 for i in 0..count {
-                    let ref_id = ids[i].as_i64().context("Context err: ids")?;
+                    let ref_id = cases[i].as_i64().context("Context err: ids")?;
                     let ref_name = match ref_id.signum() {
                         1 => format!("{}", ref_id),
                         -1 => format!("R{}", ref_id.abs()),
@@ -914,16 +955,26 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                     details.push(format!("{} {} {}", ref_name, dir.as_str(), fac));
                 }
                 name = details.join(" ");
+                json!(NotionalLoadData {
+                    cases: cases.clone(),
+                    factors: factors.clone(),
+                    directions: dirs.clone(),
+                })
             }
-
+            LoadItemType::CalulateRayleighFrequency => {
+                tindex = idx.clone();
+                name = "CALCULATE RAYLEIGH FREQUENCY".to_string();
+                json!(CalulateRayleighFrequency {})
+            }
             _ => {
                 is_pass = true;
                 warn!(
                     "'{}': Invalid load item type: {}:{:#?}",
                     idx, type_code_val, _type
                 );
+                json!(ErrorLoadItem {})
             }
-        }
+        };
         if !is_pass {
             list.push(LoadItemObj {
                 id: json!(idx),
@@ -931,6 +982,7 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                 r#type: type_code_val.clone(),
                 name: json!(name),
                 assigned: assigned.clone(),
+                attribute,
             })
         }
     }

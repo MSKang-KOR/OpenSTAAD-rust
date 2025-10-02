@@ -60,9 +60,10 @@ pub struct PrimiryLoadObj {
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LoadItemObj {
-    pub id: Value,       // usize
-    pub index: Value,    // usize
-    pub r#type: Value,   // i8 (LoadItemType Code)
-    pub name: Value,     // String
-    pub assigned: Value, // Vec<i32>
+    pub id: Value,        // usize
+    pub index: Value,     // usize
+    pub r#type: Value,    // i8 (LoadItemType Code)
+    pub name: Value,      // String
+    pub assigned: Value,  // Vec<i32>
+    pub attribute: Value, // LoadItemAttribute
 }

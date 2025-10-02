@@ -248,8 +248,95 @@ impl LoadItemType {
             | Self::NotionalLoad
             | Self::NotionalLoadData
             | Self::FloorLoadGroup
+            | Self::CalulateRayleighFrequency
         }
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub enum LoadItemAttribute {
+    NodalLoad(NodalLoad),
+    ConcentratedForce(ConcentratedForce),
+    ConcentratedMoment(ConcentratedMoment),
+    UniformForce(UniformForce),
+    UniformMoment(UniformMoment),
+    SelfWeight(SelfWeight),
+    FloorLoadGroup(FloorLoadGroup),
+    RepeatLoadData(RepeatLoadData),
+    ReferenceLoadData(ReferenceLoadData),
+    NotionalLoadData(NotionalLoadData),
+    CalulateRayleighFrequency(CalulateRayleighFrequency),
+    Error(ErrorLoadItem),
+}
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct NodalLoad {
+    pub load: Vec<Value>, // Vec<f64>
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ConcentratedForce {
+    pub direction: i64,
+    pub load: f64,
+    pub d1: f64,
+    pub d2: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ConcentratedMoment {
+    pub direction: i64,
+    pub load: f64,
+    pub d1: f64,
+    pub d2: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct UniformForce {
+    pub direction: i64,
+    pub load: f64,
+    pub d1: f64,
+    pub d2: f64,
+    pub d3: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct UniformMoment {
+    pub direction: i64,
+    pub load: f64,
+    pub d1: f64,
+    pub d2: f64,
+    pub d3: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SelfWeight {
+    // SelfWeight는 보통 별도의 데이터가 필요하지 않음
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct FloorLoadGroup {
+    // FloorLoadGroup도 보통 별도의 데이터가 필요하지 않음
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct RepeatLoadData {
+    pub cases: Vec<Value>,
+    pub factors: Vec<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ReferenceLoadData {
+    pub cases: Vec<Value>,
+    pub factors: Vec<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct NotionalLoadData {
+    pub cases: Vec<Value>,
+    pub factors: Vec<Value>,
+    pub directions: Vec<Value>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct CalulateRayleighFrequency {}
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ErrorLoadItem {}

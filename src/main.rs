@@ -31,9 +31,17 @@ fn main() -> Result<()> {
     let mut output = Staad::Output(_output);
     let mut design = Staad::Design(_design);
 
-    match get_specification_list(&mut _openstaad) {
-        Ok(v) => info!("{:#?}", v),
-        Err(e) => warn!("{:#?}", e),
+    let primary_loads = get_load_case_list(&mut _openstaad)?;
+    for load in primary_loads {
+        let item = get_load_item_list(&mut _openstaad, load.id);
+        match item {
+            Ok(v) => {
+                info!("{:#?}", v);
+            }
+            Err(e) => {
+                error!("{:#?}", e);
+            }
+        }
     }
 
     Ok(())

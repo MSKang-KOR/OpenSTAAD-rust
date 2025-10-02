@@ -102,11 +102,9 @@ impl OpenStaad {
     }
 
     pub fn get_root(&mut self) -> Result<Arc<Root>> {
-        info!("Accessing the 'Root' property...");
         Ok(Arc::clone(self.root.as_ref().unwrap()))
     }
     pub fn get_command(&mut self) -> Result<Arc<Command>> {
-        info!("Accessing the 'Command' property...");
         if self.command.is_none() {
             let dispatch =
                 unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Command")? };
@@ -115,7 +113,6 @@ impl OpenStaad {
         Ok(Arc::clone(self.command.as_ref().unwrap()))
     }
     pub fn get_design(&mut self) -> Result<Arc<Design>> {
-        info!("Accessing the 'Design' property...");
         if self.design.is_none() {
             let dispatch =
                 unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Design")? };
@@ -124,7 +121,6 @@ impl OpenStaad {
         Ok(Arc::clone(self.design.as_ref().unwrap()))
     }
     pub fn get_geometry(&mut self) -> Result<Arc<Geometry>> {
-        info!("Accessing the 'Geometry' property...");
         if self.geometry.is_none() {
             let dispatch =
                 unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Geometry")? };
@@ -133,7 +129,6 @@ impl OpenStaad {
         Ok(Arc::clone(self.geometry.as_ref().unwrap()))
     }
     pub fn get_load(&mut self) -> Result<Arc<Load>> {
-        info!("Accessing the 'Load' property...");
         if self.load.is_none() {
             let dispatch =
                 unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Load")? };
@@ -142,7 +137,6 @@ impl OpenStaad {
         Ok(Arc::clone(self.load.as_ref().unwrap()))
     }
     pub fn get_output(&mut self) -> Result<Arc<Output>> {
-        info!("Accessing the 'Output' property...");
         if self.output.is_none() {
             let dispatch =
                 unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Output")? };
@@ -151,7 +145,6 @@ impl OpenStaad {
         Ok(Arc::clone(self.output.as_ref().unwrap()))
     }
     pub fn get_property(&mut self) -> Result<Arc<Property>> {
-        info!("Accessing the 'Property' property...");
         if self.property.is_none() {
             let dispatch =
                 unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Property")? };
@@ -160,7 +153,6 @@ impl OpenStaad {
         Ok(Arc::clone(self.property.as_ref().unwrap()))
     }
     pub fn get_support(&mut self) -> Result<Arc<Support>> {
-        info!("Accessing the 'Support' property...");
         if self.support.is_none() {
             let dispatch =
                 unsafe { invoke_property(&self.root.as_ref().unwrap().dispatch, "Support")? };
