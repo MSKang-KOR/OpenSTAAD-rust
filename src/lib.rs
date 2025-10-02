@@ -32,7 +32,6 @@ pub fn start_manager() -> Result<Value, String> {
 
 // 특정 Worker에 메시지 전송
 pub fn send(msg_type: String, data: Value, app_handle: AppHandle) -> Result<Value, String> {
-    println!("msg_type: {}", msg_type);
     match msg_type.as_str() {
         "Open" => {
             let params = data["params"]
@@ -48,6 +47,29 @@ pub fn send(msg_type: String, data: Value, app_handle: AppHandle) -> Result<Valu
                 .ok_or("Missing std_path parameter")?
                 .to_string();
             let openstaad = handle_open(path.clone(), std_path.clone())?;
+            let staad_id = openstaad.id;
+            {
+                let manager_guard = STAAD_MANAGER.lock().map_err(|e| e.to_string())?;
+                if manager_guard.is_none() {
+                    return Err("STAAD_STORAGE is not started".to_string());
+                }
+
+                let manager_arc = manager_guard
+                    .as_ref()
+                    .ok_or("STAAD_STORAGE is not started")?;
+                let mut hashmap = manager_arc.lock().map_err(|e| e.to_string())?;
+                hashmap.insert(staad_id, openstaad);
+            }
+            Ok(json!(staad_id))
+        }
+        "Connect" => {
+            let params = data["params"]
+                .as_array()
+                .ok_or("Missing params parameter")?
+                .clone();
+            let pid = params[0].as_u64().ok_or("Missing pid parameter")? as u32;
+
+            let openstaad = handle_connect(pid)?;
             let staad_id = openstaad.id;
             {
                 let manager_guard = STAAD_MANAGER.lock().map_err(|e| e.to_string())?;
@@ -135,10 +157,21 @@ pub fn send(msg_type: String, data: Value, app_handle: AppHandle) -> Result<Valu
     }
 }
 
-// 완전히 격리된 OpenStaad 생성
 fn handle_open(path: String, std_path: String) -> Result<OpenStaad, String> {
     let mut openstaad =
         OpenStaad::new(path.clone(), std_path.clone()).map_err(|e| e.to_string())?;
+    let root = openstaad.get_root().map_err(|e| e.to_string())?;
+
+    // Silent mode 설정
+    let _ = unsafe {
+        invoke_method(&root.dispatch, "SetSilentMode", &mut [VARIANT::from(1)])
+            .map_err(|e| e.to_string())
+    };
+    Ok(openstaad)
+}
+
+fn handle_connect(pid: u32) -> Result<OpenStaad, String> {
+    let mut openstaad = OpenStaad::new_by_pid(pid).map_err(|e| e.to_string())?;
     let root = openstaad.get_root().map_err(|e| e.to_string())?;
 
     // Silent mode 설정

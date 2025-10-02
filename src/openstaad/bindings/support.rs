@@ -64,3 +64,13 @@ impl SupportType {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+pub struct SupportObj {
+    pub id: Value,       // u32
+    pub name: Value,     // String
+    pub r#type: Value,   // i32 (SpecificationType Code)
+    pub release: Value,  // Vec<i32>
+    pub spring: Value,   // Vec<f64>
+    pub assigned: Value, // Vec<i32>
+}

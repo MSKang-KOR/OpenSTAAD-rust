@@ -1,6 +1,6 @@
 use std::mem::ManuallyDrop;
 
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use log::warn;
 use serde_json::Value::Null;
 use serde_json::{Value, to_value as to_json};
@@ -62,89 +62,89 @@ pub fn execute_method(instance: &Staad, method: &str, params: &[Input]) -> Resul
     // Create separate storage for mutable pointers to ensure each has unique memory location
     let mut cur_idx = 0 as usize;
     let mut mut_storages: Vec<Box<dyn std::any::Any>> = Vec::new();
-    let mut __variants: Vec<VARIANT> = _inputs
-        .iter()
-        .enumerate()
-        .map(|(i, _type)| {
-            if _type.is_general_type() {
-                let var = params[cur_idx].to_variant();
-                cur_idx += 1;
-                return var;
+    let mut __variants: Vec<VARIANT> = vec![];
+    for (i, _type) in _inputs.iter().enumerate() {
+        if _type.is_general_type() {
+            let var = params[cur_idx].to_variant();
+            cur_idx += 1;
+            __variants.push(var);
+            continue;
+        }
+        // Create individual storage for each mutable parameter
+        let _var = match _type {
+            InType::MutInt => {
+                let mut mut_value = Box::new(0i32);
+                let ptr = mut_value.as_mut() as *mut i32;
+                mut_storages.push(mut_value);
+                variant_with_ptr_from::<i32>(ptr)
             }
-            // Create individual storage for each mutable parameter
-            match _type {
-                InType::MutInt => {
-                    let mut mut_value = Box::new(0i32);
-                    let ptr = mut_value.as_mut() as *mut i32;
-                    mut_storages.push(mut_value);
-                    variant_with_ptr_from::<i32>(ptr)
-                }
-                InType::MutDouble => {
-                    let mut mut_value = Box::new(0f64);
-                    let ptr = mut_value.as_mut() as *mut f64;
-                    mut_storages.push(mut_value);
-                    variant_with_ptr_from::<f64>(ptr)
-                }
-                InType::MutStr => {
-                    let mut mut_value = Box::new(BSTR::default());
-                    let ptr = mut_value.as_mut() as *mut BSTR;
-                    mut_storages.push(mut_value);
-                    variant_with_ptr_from::<BSTR>(ptr)
-                }
-                InType::MutBool => {
-                    let mut mut_value = Box::new(VARIANT_BOOL(-1));
-                    let ptr = mut_value.as_mut() as *mut VARIANT_BOOL;
-                    mut_storages.push(mut_value);
-                    variant_with_ptr_from::<bool>(ptr)
-                }
-                InType::MutVecInt => unsafe {
-                    let count = get_array_count(app, method, params, i);
-                    let psa = SafeArrayCreateVector(VT_I4, 0, count as u32);
-                    let mut mut_value = Box::new(psa);
-                    let ptr = mut_value.as_mut() as *mut *mut SAFEARRAY;
-                    mut_storages.push(mut_value);
-                    variant_with_ptr_from::<SafeArrayP<i32>>(ptr)
-                },
-                InType::MutVecDouble => unsafe {
-                    let count = get_array_count(app, method, params, i);
-                    let psa = SafeArrayCreateVector(VT_R8, 0, count as u32);
-                    let mut mut_value = Box::new(psa);
-                    let ptr = mut_value.as_mut() as *mut *mut SAFEARRAY;
-                    mut_storages.push(mut_value);
-                    variant_with_ptr_from::<SafeArrayP<f64>>(ptr)
-                },
-                InType::MutVecStr => unsafe {
-                    let count = get_array_count(app, method, params, i);
-                    let psa = SafeArrayCreateVector(VT_BSTR, 0, count as u32);
-                    let mut mut_value = Box::new(psa);
-                    let ptr = mut_value.as_mut() as *mut *mut SAFEARRAY;
-                    mut_storages.push(mut_value);
-                    variant_with_ptr_from::<SafeArrayP<BSTR>>(ptr)
-                },
-                InType::MemberSteelDgnParams => unsafe {
-                    let clsid_str =
-                        PCWSTR::from_raw(HSTRING::from("StaadPro.MembSteelDgnParams").as_ptr());
-                    let clsid = CLSIDFromProgID(clsid_str).unwrap();
-                    let _instance = CoCreateInstance(&clsid, None, CLSCTX_LOCAL_SERVER).unwrap();
-                    let instance_ptr: Option<IDispatch> = Some(_instance);
-                    let mut mut_value = Box::new(instance_ptr);
-                    let ptr = mut_value.as_mut() as *mut Option<IDispatch>;
-                    mut_storages.push(mut_value);
+            InType::MutDouble => {
+                let mut mut_value = Box::new(0f64);
+                let ptr = mut_value.as_mut() as *mut f64;
+                mut_storages.push(mut_value);
+                variant_with_ptr_from::<f64>(ptr)
+            }
+            InType::MutStr => {
+                let mut mut_value = Box::new(BSTR::default());
+                let ptr = mut_value.as_mut() as *mut BSTR;
+                mut_storages.push(mut_value);
+                variant_with_ptr_from::<BSTR>(ptr)
+            }
+            InType::MutBool => {
+                let mut mut_value = Box::new(VARIANT_BOOL(-1));
+                let ptr = mut_value.as_mut() as *mut VARIANT_BOOL;
+                mut_storages.push(mut_value);
+                variant_with_ptr_from::<bool>(ptr)
+            }
+            InType::MutVecInt => unsafe {
+                let count = get_array_count(app, method, params, i)?;
+                let psa = SafeArrayCreateVector(VT_I4, 0, count as u32);
+                let mut mut_value = Box::new(psa);
+                let ptr = mut_value.as_mut() as *mut *mut SAFEARRAY;
+                mut_storages.push(mut_value);
+                variant_with_ptr_from::<SafeArrayP<i32>>(ptr)
+            },
+            InType::MutVecDouble => unsafe {
+                let count = get_array_count(app, method, params, i)?;
+                let psa = SafeArrayCreateVector(VT_R8, 0, count as u32);
+                let mut mut_value = Box::new(psa);
+                let ptr = mut_value.as_mut() as *mut *mut SAFEARRAY;
+                mut_storages.push(mut_value);
+                variant_with_ptr_from::<SafeArrayP<f64>>(ptr)
+            },
+            InType::MutVecStr => unsafe {
+                let count = get_array_count(app, method, params, i)?;
+                let psa = SafeArrayCreateVector(VT_BSTR, 0, count as u32);
+                let mut mut_value = Box::new(psa);
+                let ptr = mut_value.as_mut() as *mut *mut SAFEARRAY;
+                mut_storages.push(mut_value);
+                variant_with_ptr_from::<SafeArrayP<BSTR>>(ptr)
+            },
+            InType::MemberSteelDgnParams => unsafe {
+                let clsid_str =
+                    PCWSTR::from_raw(HSTRING::from("StaadPro.MembSteelDgnParams").as_ptr());
+                let clsid = CLSIDFromProgID(clsid_str)?;
+                let _instance = CoCreateInstance(&clsid, None, CLSCTX_LOCAL_SERVER)?;
+                let instance_ptr: Option<IDispatch> = Some(_instance);
+                let mut mut_value = Box::new(instance_ptr);
+                let ptr = mut_value.as_mut() as *mut Option<IDispatch>;
+                mut_storages.push(mut_value);
 
-                    let mut var = VARIANT::default();
-                    var.Anonymous.Anonymous = ManuallyDrop::new(VARIANT_0_0 {
-                        vt: VT_BYREF | VT_DISPATCH,
-                        wReserved1: 0,
-                        wReserved2: 0,
-                        wReserved3: 0,
-                        Anonymous: VARIANT_0_0_0 { ppdispVal: ptr },
-                    });
-                    var
-                },
-                _ => VARIANT::default(),
-            }
-        })
-        .collect();
+                let mut var = VARIANT::default();
+                var.Anonymous.Anonymous = ManuallyDrop::new(VARIANT_0_0 {
+                    vt: VT_BYREF | VT_DISPATCH,
+                    wReserved1: 0,
+                    wReserved2: 0,
+                    wReserved3: 0,
+                    Anonymous: VARIANT_0_0_0 { ppdispVal: ptr },
+                });
+                var
+            },
+            _ => VARIANT::default(),
+        };
+        __variants.push(_var);
+    }
+
     let mut __params: &mut [VARIANT] = &mut __variants[..];
     __params.reverse();
 
@@ -157,7 +157,10 @@ pub fn execute_method(instance: &Staad, method: &str, params: &[Input]) -> Resul
                 for (oi, ot) in _outputs.iter().enumerate() {
                     let serde_v = match ot {
                         &OutType::Index(i) => {
-                            let in_type = _inputs.get(i as usize).unwrap();
+                            let in_type = _inputs
+                                .get(i as usize)
+                                .ok_or("Invalid input index")
+                                .map_err(|e| anyhow!(e))?;
                             let _var = &__params[args_len - ((i + 1) as usize)];
                             let _v = in_type.to_output_as(_var);
                             let _ = VariantClear(_var as *const VARIANT as *mut VARIANT);
@@ -193,14 +196,19 @@ pub fn execute_method(instance: &Staad, method: &str, params: &[Input]) -> Resul
     }
 }
 
-fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: usize) -> u32 {
+fn get_array_count(
+    dispatch: &IDispatch,
+    method: &str,
+    params: &[Input],
+    index: usize,
+) -> Result<u32> {
     let mut count = 0 as u32;
     unsafe {
         match method {
             // Geometry::Node
             "GetNodeList" => {
-                let variant = invoke_method(dispatch, "GetNodeCount", &mut []).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetNodeCount", &mut [])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             // Geometry::Beam
             "BreakBeamsAtSpecificNodes" => {
@@ -209,19 +217,17 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                     dispatch,
                     "GetCountOfBreakableBeamsAtSpecificNodes",
                     &mut [var],
-                )
-                .unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                )?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetBeamList" => {
-                let variant = invoke_method(dispatch, "GetMemberCount", &mut []).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetMemberCount", &mut [])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetBeamsConnectedAtNode" => {
                 let var = params[0].clone().to_variant();
-                let variant =
-                    invoke_method(dispatch, "GetNoOfBeamsConnectedAtNode", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetNoOfBeamsConnectedAtNode", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "InterSectBeams" => {
                 let variant = invoke_method(
@@ -231,20 +237,19 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                         params[2].clone().to_variant(),
                         params[1].clone().to_variant(),
                     ],
-                )
-                .unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                )?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             // Geometry::Group
             "GetGroupEntities" => {
                 let var = params[0].clone().to_variant();
-                let variant = invoke_method(dispatch, "GetGroupEntityCount", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetGroupEntityCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetGroupNames" => {
                 let var = params[0].clone().to_variant();
-                let variant = invoke_method(dispatch, "GetGroupCount", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetGroupCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             // Property::UPT
             "GetUptGeneralProfileBoundaryPoints" => {
@@ -254,9 +259,8 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                     dispatch,
                     "GetUptGeneralProfilePointsCount",
                     &mut [var2, var1],
-                )
-                .unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                )?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetUptGeneralStressLocationPoints" => {
                 count = 4; // Fixed size array according to documentation
@@ -270,37 +274,33 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                     dispatch,
                     "GetIsotropicMaterialAssignedPlateCount",
                     &mut [var],
-                )
-                .unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                )?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetSectionPropertyAssignedBeamList" => {
                 let var = params[0].clone().to_variant();
                 let variant =
-                    invoke_method(dispatch, "GetSectionPropertyAssignedBeamCount", &mut [var])
-                        .unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                    invoke_method(dispatch, "GetSectionPropertyAssignedBeamCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetSectionPropertyList" => {
-                let variant = invoke_method(dispatch, "GetSectionPropertyCount", &mut []).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetSectionPropertyCount", &mut [])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetSectionPropertyValuesEx" => {
                 let variant =
-                    invoke_method(dispatch, "GetCountofSectionPropertyValuesEx", &mut []).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                    invoke_method(dispatch, "GetCountofSectionPropertyValuesEx", &mut [])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetUserProvidedTableList" => {
-                let variant =
-                    invoke_method(dispatch, "GetUserProvidedTableCount", &mut []).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetUserProvidedTableCount", &mut [])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetUserProvidedTableSectionList" => {
                 let var = params[0].clone().to_variant();
                 let variant =
-                    invoke_method(dispatch, "GetUserProvidedTableSectionCount", &mut [var])
-                        .unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                    invoke_method(dispatch, "GetUserProvidedTableSectionCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
 
             "GetMemberReleaseSpecEx" => {
@@ -321,9 +321,8 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                     dispatch,
                     "GetIsotropicMaterialAssignedBeamCount",
                     &mut [var],
-                )
-                .unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                )?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetOrthotropic2DMaterialProperties" => {
                 if index == 1 {
@@ -347,8 +346,8 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                 count = 6;
             }
             "GetMemberAttributeList" => {
-                let variant = invoke_method(dispatch, "GetMemberAttributeCount", &mut []).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetMemberAttributeCount", &mut [])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
 
             // Support methods
@@ -366,8 +365,7 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                         variant_with_ptr_from::<f64>(&mut 0f64 as *mut f64),
                         var1,
                     ],
-                )
-                .unwrap();
+                )?;
                 count = *count_ptr as u32;
             }
             "GetElasticMatAssignmentList" => {
@@ -384,8 +382,7 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                         variant_with_ptr_from::<i32>(&mut 0i32 as *mut i32),
                         var1,
                     ],
-                )
-                .unwrap();
+                )?;
                 count = *count_ptr as u32;
             }
             "GetPlateMatAssignmentList" => {
@@ -404,13 +401,12 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                         variant_with_ptr_from::<i32>(&mut 0i32 as *mut i32),
                         var1,
                     ],
-                )
-                .unwrap();
+                )?;
                 count = *count_ptr as u32;
             }
             "GetSupportNodes" => {
-                let variant = invoke_method(dispatch, "GetSupportCount", &mut []).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetSupportCount", &mut [])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetSupportInformation" => {
                 count = 6; // Fixed size array for release and spring specs (FX, FY, FZ, MX, MY, MZ)
@@ -420,9 +416,8 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
             }
             // Reference Load methods
             "GetReferenceLoadCaseNumbers" => {
-                let variant =
-                    invoke_method(dispatch, "GetReferenceLoadCaseCount", &mut []).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetReferenceLoadCaseCount", &mut [])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             // Nodal Load methods
             "GetNodalLoadInfo" => {
@@ -430,59 +425,56 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
             }
             "GetNodalLoads" => {
                 let var = params[0].clone().to_variant();
-                let variant = invoke_method(dispatch, "GetNodalLoadCount", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetNodalLoadCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             // Member Load methods
             "GetConcForces" => {
                 let var = params[0].clone().to_variant();
-                let variant = invoke_method(dispatch, "GetConcForceCount", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetConcForceCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetConcMoments" => {
                 let var = params[0].clone().to_variant();
-                let variant = invoke_method(dispatch, "GetConcMomentCount", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetConcMomentCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetLinearVaryingLoads" => {
                 let var = params[0].clone().to_variant();
-                let variant =
-                    invoke_method(dispatch, "GetLinearVaryingLoadCount", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetLinearVaryingLoadCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetMemberLoadInfo" => {
                 count = 3; // Fixed size arrays for force and distance parameters
             }
             "GetTrapLoads" => {
                 let var = params[0].clone().to_variant();
-                let variant = invoke_method(dispatch, "GetTrapLoadCount", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetTrapLoadCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetUDLLoads" => {
                 let var = params[0].clone().to_variant();
-                let variant = invoke_method(dispatch, "GetUDLLoadCount", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetUDLLoadCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetUNIMoments" => {
                 let var = params[0].clone().to_variant();
-                let variant = invoke_method(dispatch, "GetUNIMomentCount", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetUNIMomentCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             // Element Load methods
             "GetElementConcLoads" => {
                 let var = params[0].clone().to_variant();
-                let variant =
-                    invoke_method(dispatch, "GetElementConcLoadCount", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetElementConcLoadCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetElementLoadInfo" => {
                 count = 4; // Fixed size arrays for force and distance parameters (W1-W4, X1-X2, Y1-Y2)
             }
             "GetElementPressureLoads" => {
                 let var = params[0].clone().to_variant();
-                let variant =
-                    invoke_method(dispatch, "GetElementPressureLoadCount", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetElementPressureLoadCount", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             // Floor Load methods
             "GetInfluenceArea" => {
@@ -498,9 +490,8 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                         params[1].clone().to_variant(),
                         params[0].clone().to_variant(),
                     ],
-                )
-                .unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                )?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             // Repeat Load methods
             "GetNotionalLoadByIndex" => {
@@ -509,21 +500,18 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                     dispatch,
                     "GetNoLoadFactorDirectionInNotionalLoad",
                     &mut [var],
-                )
-                .unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                )?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetReferenceLoadByIndex" => {
                 let var = params[0].clone().to_variant();
-                let variant =
-                    invoke_method(dispatch, "GetNoOfSetsInReferenceLoad", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetNoOfSetsInReferenceLoad", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetRepeatLoadByIndex" => {
                 let var = params[0].clone().to_variant();
-                let variant =
-                    invoke_method(dispatch, "GetNoLoadFactorInRepeatLoad", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetNoLoadFactorInRepeatLoad", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             // Load Combination methods
             "GetLoadAndFactorForCombination" => {
@@ -532,37 +520,33 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                     dispatch,
                     "GetNoOfLoadAndFactorPairsForCombination",
                     &mut [var],
-                )
-                .unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                )?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetLoadCombinationCaseNumbers" => {
-                let variant =
-                    invoke_method(dispatch, "GetLoadCombinationCaseCount", &mut []).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetLoadCombinationCaseCount", &mut [])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             // Load Case Operation methods
             "GetAssignmentListForLoadType" => {
                 let var1 = params[0].clone().to_variant();
                 let var2 = params[1].clone().to_variant();
-                let variant =
-                    invoke_method(dispatch, "GetListSizeForLoadType", &mut [var2, var1]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetListSizeForLoadType", &mut [var2, var1])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetLoadsInLoadList" => {
                 let var = params[0].clone().to_variant();
-                let variant =
-                    invoke_method(dispatch, "GetLoadCountInLoadList", &mut [var]).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetLoadCountInLoadList", &mut [var])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetPrimaryLoadCaseNumbers" => {
-                let variant = invoke_method(dispatch, "GetPrimaryLoadCaseCount", &mut []).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetPrimaryLoadCaseCount", &mut [])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             // Load Envelopes methods
             "GetEnvelopeIDs" => {
-                let variant = invoke_method(dispatch, "GetEnvelopeCount", &mut []).unwrap();
-                count = VariantToInt32(&variant as *const VARIANT).unwrap() as u32;
+                let variant = invoke_method(dispatch, "GetEnvelopeCount", &mut [])?;
+                count = VariantToInt32(&variant as *const VARIANT)? as u32;
             }
             "GetLoadListfromLoadEnvelope" => {
                 let var = params[0].clone().to_variant();
@@ -575,8 +559,7 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                         variant_with_ptr_from::<i32>(&mut 0i32 as *mut i32),
                         var,
                     ],
-                )
-                .unwrap();
+                )?;
                 count = *count_ptr as u32;
             }
             // Output::Nodes/Joints/Supports
@@ -680,9 +663,8 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
                     dispatch,
                     "GetTimeHistoryIntegrationStepInfo",
                     &mut [variant_with_ptr_from::<f64>(&mut 0f64 as *mut f64)],
-                )
-                .unwrap();
-                count = (VariantToInt32(&variant as *const VARIANT).unwrap() + 1) as u32;
+                )?;
+                count = (VariantToInt32(&variant as *const VARIANT)? + 1) as u32;
             }
             // Output::Static
             "GetStaticCheckResult" => {
@@ -701,5 +683,5 @@ fn get_array_count(dispatch: &IDispatch, method: &str, params: &[Input], index: 
             }
         };
     }
-    count
+    Ok(count)
 }

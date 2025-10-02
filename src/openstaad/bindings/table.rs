@@ -37,12 +37,12 @@ pub struct IsotropicMaterialObj {
     pub r#type: Value, // Vec<i32>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SpecificationObj {
-    pub name: Value,     // String
-    pub r#type: Value,   // i32 (SpecificationType Code)
-    pub assigned: Value, // Vec<i32>
-}
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct SpecificationObj {
+//     pub name: Value,     // String
+//     pub r#type: Value,   // i32 (SpecificationType Code)
+//     pub assigned: Value, // Vec<i32>
+// }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SupportObj {

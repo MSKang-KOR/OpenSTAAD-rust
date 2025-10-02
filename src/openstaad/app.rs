@@ -85,6 +85,22 @@ impl OpenStaad {
         Ok(instance)
     }
 
+    pub fn new_by_pid(pid: u32) -> Result<Self> {
+        let dispatch = get_object_by_pid(pid)?;
+        let instance = Self {
+            id: pid,
+            root: Some(Arc::new(Root::new(dispatch))),
+            command: None,
+            design: None,
+            geometry: None,
+            load: None,
+            output: None,
+            property: None,
+            support: None,
+        };
+        Ok(instance)
+    }
+
     pub fn get_root(&mut self) -> Result<Arc<Root>> {
         info!("Accessing the 'Root' property...");
         Ok(Arc::clone(self.root.as_ref().unwrap()))
@@ -154,25 +170,55 @@ impl OpenStaad {
     }
 }
 
-// 리소스 정리
-impl Drop for OpenStaad {
-    fn drop(&mut self) {
-        info!("Dropping OpenStaad instance with ID: {}", self.id);
+fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)> {
+    // let pid = run_no_window(system_path)?;
+    // info!("Started STAAD.Pro process with PID: {}", pid);
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+    }
+    if !std::path::Path::new(&system_path).exists() {
+        bail!("파일이 존재하지 않습니다: {}", system_path);
+    }
 
-        // // Quit 메서드 호출하여 정상 종료 시도
-        // match unsafe { invoke_method(&self.dispatch, "Quit", &mut []) } {
-        //     Ok(_) => info!("Successfully called Quit method"),
-        //     Err(e) => warn!("Failed to call Quit method: {}", e),
-        // }
+    let child = std::process::Command::new(&system_path)
+        .args(&[std_path.as_str(), "/s"])
+        .spawn()?;
+    let _pid = child.id();
 
-        // COM 정리 및 약간의 대기
-        unsafe {
-            CoUninitialize();
+    info!("Waiting for STAAD.Pro process to initialize...");
+    thread::sleep(Duration::from_millis(5000));
+
+    let mut attempts = 0;
+    let max_attempts = 5;
+    loop {
+        attempts += 1;
+
+        // 먼저 ROT 방식 시도
+        match find_staad_by_process_id(_pid) {
+            Ok(dispatch) => {
+                info!("Success to connect Staad.Pro with pid {} via ROT", _pid);
+                let _ = waiting(&dispatch)?;
+                return Ok((_pid, dispatch));
+            }
+            Err(e) => {
+                if attempts > max_attempts {
+                    let _ = std::process::Command::new("taskkill")
+                        .args(&["/PID", _pid.to_string().as_str()])
+                        .spawn()?;
+                    // unsafe {
+                    //     let _ = CoUninitialize();
+                    // }
+                    bail!(
+                        "Staas.Pro가 정상적으로 실행되지 않았거나 STD 파일을 열 수 없어 종료합니다."
+                    );
+                }
+                info!(
+                    "ROT approach failed: {}. Trying CoCreateInstance approach...",
+                    e
+                );
+                thread::sleep(Duration::from_millis(3000));
+            }
         }
-
-        // 프로세스 정리를 위한 짧은 대기
-        thread::sleep(Duration::from_millis(100));
-        info!("OpenStaad instance dropped");
     }
 }
 
@@ -224,54 +270,17 @@ fn get_active_object() -> Result<IDispatch> {
     }
 }
 
-fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)> {
-    // let pid = run_no_window(system_path)?;
-    // info!("Started STAAD.Pro process with PID: {}", pid);
+fn get_object_by_pid(_pid: u32) -> Result<IDispatch> {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
     }
-    if !std::path::Path::new(&system_path).exists() {
-        bail!("파일이 존재하지 않습니다: {}", system_path);
-    }
-
-    let child = std::process::Command::new(&system_path)
-        .args(&[std_path.as_str(), "/s"])
-        .spawn()?;
-    let _pid = child.id();
-
-    info!("Waiting for STAAD.Pro process to initialize...");
-    thread::sleep(Duration::from_millis(5000));
-
-    let mut attempts = 0;
-    let max_attempts = 5;
-    loop {
-        attempts += 1;
-
-        // 먼저 ROT 방식 시도
-        match find_staad_by_process_id(_pid) {
-            Ok(dispatch) => {
-                info!("Success to connect Staad.Pro with pid {} via ROT", _pid);
-                let _ = waiting(&dispatch)?;
-                return Ok((_pid, dispatch));
-            }
-            Err(e) => {
-                if attempts > max_attempts {
-                    let _ = std::process::Command::new("taskkill")
-                        .args(&["/PID", _pid.to_string().as_str()])
-                        .spawn()?;
-                    // unsafe {
-                    //     let _ = CoUninitialize();
-                    // }
-                    bail!(
-                        "Staas.Pro가 정상적으로 실행되지 않았거나 STD 파일을 열 수 없어 종료합니다."
-                    );
-                }
-                info!(
-                    "ROT approach failed: {}. Trying CoCreateInstance approach...",
-                    e
-                );
-                thread::sleep(Duration::from_millis(3000));
-            }
+    match find_staad_by_process_id(_pid) {
+        Ok(dispatch) => {
+            info!("Success to connect Staad.Pro with pid {} via ROT", _pid);
+            return Ok(dispatch);
+        }
+        Err(e) => {
+            bail!("ROT approach failed: {}", e)
         }
     }
 }
@@ -436,3 +445,25 @@ pub fn waiting(dispatch: &IDispatch) -> Result<bool> {
 //         Ok(pid)
 //     }
 // }
+
+// 리소스 정리
+impl Drop for OpenStaad {
+    fn drop(&mut self) {
+        info!("Dropping OpenStaad instance with ID: {}", self.id);
+
+        // // Quit 메서드 호출하여 정상 종료 시도
+        // match unsafe { invoke_method(&self.dispatch, "Quit", &mut []) } {
+        //     Ok(_) => info!("Successfully called Quit method"),
+        //     Err(e) => warn!("Failed to call Quit method: {}", e),
+        // }
+
+        // COM 정리 및 약간의 대기
+        unsafe {
+            CoUninitialize();
+        }
+
+        // 프로세스 정리를 위한 짧은 대기
+        thread::sleep(Duration::from_millis(100));
+        info!("OpenStaad instance dropped");
+    }
+}

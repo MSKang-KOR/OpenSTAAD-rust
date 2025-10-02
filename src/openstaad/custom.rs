@@ -1,7 +1,7 @@
 use crate::{
     openstaad::{
         app::OpenStaad,
-        bindings::*,
+        bindings::{support::SupportObj, *},
         execute::{self, execute_method},
     },
     tools::{
@@ -570,7 +570,7 @@ pub fn get_support_list(openstaad: &mut OpenStaad) -> Result<Vec<SupportObj>> {
         .as_array()
         .context("Context err: beam_list")?;
 
-    let mut sppt_map: HashMap<Value, (Value, Value, Value)> = HashMap::new();
+    let mut sppt_map: HashMap<Value, SupportObj> = HashMap::new();
     for n in node_list {
         let node_id_val = n.clone();
         let node_id = node_id_val.as_i64().context("Context err: sec_ref")? as i32;
@@ -579,35 +579,37 @@ pub fn get_support_list(openstaad: &mut OpenStaad) -> Result<Vec<SupportObj>> {
             execute_method(&support, "GetSupportInformationEx", &[node_id.into()])?;
         let sppt_id_val = support_info_val[1].clone();
         let sppt_type_val = support_info_val[2].clone();
-        // let release_arr_val = support_info_val[3].clone();
-        // let spring_arr_val = support_info_val[4].clone();
+        let release_arr_val = support_info_val[3].clone();
+        let spring_arr_val = support_info_val[4].clone();
 
         let sppt_type = SupportType::from(sppt_type_val);
-        let sppt = sppt_map.get_mut(&sppt_id_val);
-        match sppt {
-            Some((name, _type, json_arr)) => {
-                let vec = json_arr
+        let searched = sppt_map.get_mut(&sppt_id_val);
+        match searched {
+            Some(sppt) => {
+                let vec = sppt
+                    .assigned
                     .as_array_mut()
                     .context("Context err: beta angle json array")?;
                 vec.push(node_id_val);
             }
             None => {
-                let sppt_name = sppt_type.as_name();
                 sppt_map.insert(
-                    sppt_id_val,
-                    (sppt_name, sppt_type.as_code(), json!([node_id_val])),
+                    sppt_id_val.clone(),
+                    SupportObj {
+                        id: sppt_id_val,
+                        name: sppt_type.as_name(),
+                        r#type: sppt_type.as_code(),
+                        assigned: json!([node_id_val]),
+                        release: release_arr_val,
+                        spring: spring_arr_val,
+                    },
                 );
             }
         }
     }
     let mut list: Vec<SupportObj> = Vec::new();
-    sppt_map.iter().for_each(|(k, (name, code, assigned))| {
-        list.push(SupportObj {
-            id: k.clone(),
-            name: name.clone(),
-            r#type: code.clone(),
-            assigned: assigned.clone(),
-        });
+    sppt_map.iter().for_each(|(k, sppt)| {
+        list.push(sppt.clone());
     });
     Ok(list)
 }
@@ -645,7 +647,7 @@ pub fn get_load_case_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoadOb
     for n in rload_ids {
         let rload_id_val = n.clone();
         let rload_id = rload_id_val.as_i64().context("Context err: sec_ref")? as i32;
-
+        let _ = execute_method(&load, "SetLoadActive", &[rload_id.into()]);
         let title_val = execute_method(&load, "GetLoadCaseTitle", &[rload_id.into()])?;
         let type_val = execute_method(&load, "GetLoadType", &[rload_id.into()])?;
 
@@ -858,7 +860,7 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                 let mut details = vec!["REPEAT LOAD".to_string()];
                 for i in 0..count {
                     details.push(format!(
-                        "R{} {}",
+                        "{} {}",
                         ids[i],
                         round_with_factor(&factors[i], 1., 2)?
                     ));
