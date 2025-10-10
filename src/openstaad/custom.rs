@@ -713,6 +713,7 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
             LoadItemType::NodalLoad => {
                 let data = execute_method(&load, "GetNodalLoadInfo", &[(cur_idx as i32).into()])?;
                 let loads = data[1].as_array().context("Context err: loads")?;
+                let mut factored_loads: Vec<f64> = vec![];
                 let mut details = Vec::new();
                 for i in 0..6 as usize {
                     if loads[i] != json!(0.0) {
@@ -733,11 +734,14 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                         };
                         let val = round_with_factor(&loads[i], factor, num_decimal)?;
                         details.push(format!("{} {} {},{}", name, val, funit, lunit));
+                        factored_loads.push(val);
+                    } else {
+                        factored_loads.push(0.);
                     }
                 }
                 name = details.join(" ");
                 json!(NodalLoad {
-                    load: loads.clone(),
+                    load: factored_loads,
                 })
             }
             LoadItemType::ConcentratedForce => {

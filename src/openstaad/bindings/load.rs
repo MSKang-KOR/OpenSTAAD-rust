@@ -271,7 +271,7 @@ pub enum LoadItemAttribute {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct NodalLoad {
-    pub load: Vec<Value>, // Vec<f64>
+    pub load: Vec<f64>, // Vec<f64>
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
