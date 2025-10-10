@@ -2,7 +2,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
-pub enum PrimiryLoadType {
+pub enum PrimaryLoadType {
     Error = -1,
     Dead = 0,
     Live = 1,
@@ -29,7 +29,7 @@ pub enum PrimiryLoadType {
     Push = 22,
     None = 23,
 }
-impl PrimiryLoadType {
+impl PrimaryLoadType {
     pub fn as_code(&self) -> Value {
         json!(*self as i8)
     }
@@ -62,7 +62,7 @@ impl PrimiryLoadType {
             Self::Error => json!("Error"),
         }
     }
-    pub fn from(value: Value) -> Self {
+    pub fn from_code(value: Value) -> Self {
         let code = value.as_i64().unwrap() as i8;
         match code {
             0 => Self::Dead,
@@ -89,6 +89,37 @@ impl PrimiryLoadType {
             21 => Self::Gravity,
             22 => Self::Push,
             23 => Self::None,
+            _ => Self::Error,
+        }
+    }
+    pub fn from_str(value: Value) -> Self {
+        let _str = value.as_str().unwrap();
+        match _str {
+            "Dead" => Self::Dead,
+            "Live" => Self::Live,
+            "RoofLive" => Self::RoofLive,
+            "Wind" => Self::Wind,
+            "Seismic-H" => Self::SeismicH,
+            "Seismic-V" => Self::SeismicV,
+            "Snow" => Self::Snow,
+            "Fluids" => Self::Fluids,
+            "Soil" => Self::Soil,
+            "Rain" => Self::Rain,
+            "Ponding" => Self::Ponding,
+            "Dust" => Self::Dust,
+            "Traffic" => Self::Traffic,
+            "Temp" => Self::Temp,
+            "Imperfection" => Self::Imperfection,
+            "Accidental" => Self::Accidental,
+            "Flood" => Self::Flood,
+            "Ice" => Self::Ice,
+            "WindIce" => Self::WindIce,
+            "CraneHook" => Self::CraneHook,
+            "Mass" => Self::Mass,
+            "Gravity" => Self::Gravity,
+            "Push" => Self::Push,
+            "None" => Self::None,
+            "Error" => Self::Error,
             _ => Self::Error,
         }
     }

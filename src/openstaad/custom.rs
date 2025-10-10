@@ -630,7 +630,7 @@ pub fn get_reference_load_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryL
 
         list.push(PrimiryLoadObj {
             id: rload_id_val,
-            r#type: PrimiryLoadType::from(type_val).as_name(),
+            r#type: PrimaryLoadType::from_code(type_val).as_name(),
             title: title_val,
         })
     }
@@ -653,7 +653,7 @@ pub fn get_load_case_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoadOb
 
         list.push(PrimiryLoadObj {
             id: rload_id_val,
-            r#type: PrimiryLoadType::from(type_val).as_name(),
+            r#type: PrimaryLoadType::from_code(type_val).as_name(),
             title: title_val,
         })
     }
@@ -1018,6 +1018,71 @@ pub fn analyze(openstaad: &mut OpenStaad, handle: AppHandle) -> Result<Value> {
 
     // json!(AnalysisStatus::from(code).as_str())
     Ok(json!(""))
+}
+
+pub fn get_design_results(openstaad: &mut OpenStaad) -> Result<Vec<(MemberSteelDesignResult)>> {
+    let root = openstaad.get_root()?;
+    let geo = openstaad.get_geometry()?;
+    let geometry = Staad::Geometry(Arc::clone(&geo));
+    let dsg = openstaad.get_design()?;
+    let design = Staad::Design(Arc::clone(&dsg));
+    let out = openstaad.get_output()?;
+    let output = Staad::Output(Arc::clone(&out));
+
+    let (lunit, funit) = get_units(&root.dispatch)?;
+    let (lf, ff) = get_unit_factors(&root.dispatch, lunit.as_str(), funit.as_str())?;
+
+    let beam_list_value = execute_method(&geometry, "GetBeamList", &[])?;
+    let beam_list = beam_list_value
+        .as_array()
+        .context("Context err: beam_list")?;
+
+    let dgn_code = execute_method(&design, "GetDesignBriefCode", &[1.into()])?;
+    let is_aisc_2016 = json!(1067) == dgn_code;
+
+    let mut blk_name = String::new();
+    if is_aisc_2016 {
+        let blk_name_result = execute_method(
+            &output,
+            "GetSteelDesignParameterBlockNameByIndex",
+            &[0.into()],
+        )?;
+        let blk_name_str = blk_name_result[1]
+            .as_str()
+            .context("Context err: blk_name")?;
+        blk_name = blk_name_str.to_string();
+    }
+
+    let mut list = vec![];
+    for n in beam_list {
+        let id = n.clone();
+        let beam_id = id.as_i64().context("Context err: sec_ref")? as i32;
+
+        if is_aisc_2016 {
+            let count_result = execute_method(&output, "GetSteelDesignParameterBlockCount", &[])?;
+            let count = count_result.as_i64().context("Context err: count")? as i32;
+            if count > 0 {
+                let dgn_results = execute_method(
+                    &output,
+                    "GetMultipleMemberSteelDesignResults",
+                    &[blk_name.to_string().into(), beam_id.into()],
+                )?;
+                let ratio_result = execute_method(
+                    &output,
+                    "GetMultipleMemberSteelDesignMaxRatio",
+                    &[beam_id.into()],
+                )?;
+                let mut row = MemberSteelDesignResult::new(id, dgn_results, lf, ff)?;
+                row.critical_ratio = ratio_result[1].clone();
+                list.push(row)
+            }
+        } else {
+            let dgn_results =
+                execute_method(&output, "GetMemberSteelDesignResults", &[beam_id.into()])?;
+            list.push(MemberSteelDesignResult::new(id, dgn_results, lf, ff)?)
+        }
+    }
+    Ok(list)
 }
 
 pub fn get_design_results(openstaad: &mut OpenStaad) -> Result<Vec<(MemberSteelDesignResult)>> {
