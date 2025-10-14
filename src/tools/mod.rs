@@ -1,3 +1,4 @@
+pub(crate) mod com_context;
 pub(crate) mod invoke;
 pub(crate) mod notify;
 pub(crate) mod safe_array;
@@ -5,6 +6,7 @@ pub(crate) mod unit;
 pub(crate) mod value_types;
 pub(crate) mod variant;
 
+pub use com_context::{ComContext, initialize_com, uninitialize_com};
 pub use invoke::invoke_method;
 pub use safe_array::{
     safe_array_from_vec1d, safe_array_from_vec2d, sa_to_vec1d, sa_to_vec2d,

@@ -390,7 +390,6 @@ pub fn get_specification_list(openstaad: &mut OpenStaad) -> Result<Vec<Value>> {
     let geometry = Staad::Geometry(Arc::clone(&geo));
     let prop = openstaad.get_property()?;
     let property = Staad::Property(Arc::clone(&prop));
-
     // let (lf, ff) = get_unit_factors(&openstaad.dispatch)?;
 
     let beam_list_value = execute_method(&geometry, "GetBeamList", &[])?;
@@ -562,7 +561,6 @@ pub fn get_support_list(openstaad: &mut OpenStaad) -> Result<Vec<SupportObj>> {
     // let geometry = Staad::Geometry(Arc::clone(&geo));
     let spt = openstaad.get_support()?;
     let support = Staad::Support(Arc::clone(&spt));
-
     // let (lf, ff) = get_unit_factors(&openstaad.dispatch)?;
     // let sf = ff / lf;
     let supported_val = execute_method(&support, "GetSupportNodes", &[])?;
@@ -617,7 +615,6 @@ pub fn get_support_list(openstaad: &mut OpenStaad) -> Result<Vec<SupportObj>> {
 pub fn get_reference_load_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoadObj>> {
     let ld = openstaad.get_load()?;
     let load = Staad::Load(Arc::clone(&ld));
-
     let mut list: Vec<PrimiryLoadObj> = Vec::new();
     let rload_val = execute_method(&load, "GetReferenceLoadCaseNumbers", &[])?;
     let rload_ids = rload_val[1].as_array().context("Context err: beam_list")?;
@@ -640,7 +637,6 @@ pub fn get_reference_load_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryL
 pub fn get_load_case_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoadObj>> {
     let ld = openstaad.get_load()?;
     let load = Staad::Load(Arc::clone(&ld));
-
     let mut list: Vec<PrimiryLoadObj> = Vec::new();
     let rload_val = execute_method(&load, "GetPrimaryLoadCaseNumbers", &[])?;
     let rload_ids = rload_val[1].as_array().context("Context err: beam_list")?;
@@ -699,12 +695,18 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
 
         let mut assigned: Value = Value::Null;
         if _type.has_assigned() {
-            let assigned_val = execute_method(
+            match execute_method(
                 &load,
                 "GetAssignmentListForLoadType",
                 &[type_code.into(), (cur_idx as i32).into()],
-            )?;
-            assigned = assigned_val[1].clone();
+            ) {
+                Ok(v) => {
+                    assigned = v[1].clone();
+                }
+                Err(e) => {
+                    println!("{:#?}: {}", _type, e);
+                }
+            }
         }
 
         let mut is_pass = false;

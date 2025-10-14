@@ -1,14 +1,11 @@
 use anyhow::{Context, Result, anyhow, bail};
 use log::{info, warn};
 use serde::Serialize;
-use windows::Win32::System::Com::{CoUninitialize, GetRunningObjectTable, IMoniker};
+use windows::Win32::System::Com::{GetRunningObjectTable, IMoniker};
 use windows::Win32::System::Ole::GetActiveObject;
 use windows::Win32::System::Variant::VariantToInt32;
 use windows::{
-    Win32::System::{
-        Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, IDispatch},
-        Variant::VARIANT,
-    },
+    Win32::System::{Com::IDispatch, Variant::VARIANT},
     core::{GUID, HSTRING, PCWSTR},
 };
 use windows_core::{IUnknown, Interface};
@@ -21,6 +18,7 @@ use crate::openstaad::output::Output;
 use crate::openstaad::property::Property;
 use crate::openstaad::root::Root;
 use crate::openstaad::support::Support;
+use crate::tools::ComContext;
 use crate::tools::invoke::{invoke_method, invoke_property};
 use crate::tools::value_types::{InType as ptype, MethodSignature, OutType as rtype};
 use std::{collections::HashMap, sync::Arc, thread, time::Duration};
@@ -38,13 +36,16 @@ pub struct OpenStaad {
     pub output: Option<Arc<Output>>,
     pub property: Option<Arc<Property>>,
     pub support: Option<Arc<Support>>,
+    #[serde(skip)]
+    _com_context: Option<Arc<ComContext>>,
 }
 
 impl OpenStaad {
     /// Connects to OpenSTAAD and initializes the application.
     pub fn new(system_path: String, std_path: String) -> Result<Self> {
+        let com_context = Arc::new(ComContext::new()?);
         let (id, dispatch) = initialize(system_path, std_path)?;
-        let instance = Self {
+        let mut instance = Self {
             id,
             root: Some(Arc::new(Root::new(dispatch))),
             command: None,
@@ -54,10 +55,12 @@ impl OpenStaad {
             output: None,
             property: None,
             support: None,
+            _com_context: Some(com_context),
         };
         Ok(instance)
     }
     pub fn new_by_activated() -> Result<Self> {
+        let com_context = Arc::new(ComContext::new()?);
         let dispatch = get_active_object()?;
         let id = unsafe {
             match invoke_method(&dispatch, "GetProcessId", &mut []) {
@@ -71,7 +74,7 @@ impl OpenStaad {
             }
         };
 
-        let instance = Self {
+        let mut instance = Self {
             id,
             root: Some(Arc::new(Root::new(dispatch))),
             command: None,
@@ -81,13 +84,15 @@ impl OpenStaad {
             output: None,
             property: None,
             support: None,
+            _com_context: Some(com_context),
         };
         Ok(instance)
     }
 
     pub fn new_by_pid(pid: u32) -> Result<Self> {
+        let com_context = ComContext::new()?;
         let dispatch = get_object_by_pid(pid)?;
-        let instance = Self {
+        let mut instance = Self {
             id: pid,
             root: Some(Arc::new(Root::new(dispatch))),
             command: None,
@@ -97,6 +102,7 @@ impl OpenStaad {
             output: None,
             property: None,
             support: None,
+            _com_context: Some(Arc::new(com_context)),
         };
         Ok(instance)
     }
@@ -165,9 +171,7 @@ impl OpenStaad {
 fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)> {
     // let pid = run_no_window(system_path)?;
     // info!("Started STAAD.Pro process with PID: {}", pid);
-    unsafe {
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-    }
+    // COM is already initialized by ComContext
     if !std::path::Path::new(&system_path).exists() {
         bail!("파일이 존재하지 않습니다: {}", system_path);
     }
@@ -197,9 +201,6 @@ fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)>
                     let _ = std::process::Command::new("taskkill")
                         .args(&["/PID", _pid.to_string().as_str()])
                         .spawn()?;
-                    // unsafe {
-                    //     let _ = CoUninitialize();
-                    // }
                     bail!(
                         "Staas.Pro가 정상적으로 실행되지 않았거나 STD 파일을 열 수 없어 종료합니다."
                     );
@@ -216,9 +217,7 @@ fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)>
 
 fn get_active_object() -> Result<IDispatch> {
     info!("Creating OpenSTAAD instance...");
-    unsafe {
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-    };
+    // COM is already initialized by ComContext
     let clsid = unsafe {
         // ProgID for OpenSTAAD, as per the documentation.
         let prog_id = HSTRING::from("StaadPro.OpenSTAAD");
@@ -263,9 +262,7 @@ fn get_active_object() -> Result<IDispatch> {
 }
 
 fn get_object_by_pid(_pid: u32) -> Result<IDispatch> {
-    unsafe {
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-    }
+    // COM is already initialized by ComContext
     match find_staad_by_process_id(_pid) {
         Ok(dispatch) => {
             info!("Success to connect Staad.Pro with pid {} via ROT", _pid);
@@ -443,19 +440,9 @@ impl Drop for OpenStaad {
     fn drop(&mut self) {
         info!("Dropping OpenStaad instance with ID: {}", self.id);
 
-        // // Quit 메서드 호출하여 정상 종료 시도
-        // match unsafe { invoke_method(&self.dispatch, "Quit", &mut []) } {
-        //     Ok(_) => info!("Successfully called Quit method"),
-        //     Err(e) => warn!("Failed to call Quit method: {}", e),
-        // }
+        // COM cleanup is handled automatically by ComContext's Drop implementation
+        // Each instance tracks its own COM reference count
 
-        // COM 정리 및 약간의 대기
-        unsafe {
-            CoUninitialize();
-        }
-
-        // 프로세스 정리를 위한 짧은 대기
-        thread::sleep(Duration::from_millis(100));
         info!("OpenStaad instance dropped");
     }
 }
