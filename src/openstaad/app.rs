@@ -1,14 +1,22 @@
 use anyhow::{Context, Result, anyhow, bail};
 use log::{info, warn};
 use serde::Serialize;
+use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, STILL_ACTIVE};
 use windows::Win32::System::Com::{GetRunningObjectTable, IMoniker};
 use windows::Win32::System::Ole::GetActiveObject;
+use windows::Win32::System::Threading::{
+    CREATE_NO_WINDOW, CreateProcessW, GetExitCodeProcess, OpenProcess, PROCESS_INFORMATION,
+    PROCESS_TERMINATE, STARTF_USESHOWWINDOW, STARTUPINFOW, TerminateProcess,
+};
 use windows::Win32::System::Variant::VariantToInt32;
+use windows::Win32::UI::WindowsAndMessaging::{
+    EnumWindows, GetWindowThreadProcessId, SW_HIDE, ShowWindow,
+};
 use windows::{
     Win32::System::{Com::IDispatch, Variant::VARIANT},
-    core::{GUID, HSTRING, PCWSTR},
+    core::{GUID, HSTRING, PCWSTR, PWSTR},
 };
-use windows_core::{IUnknown, Interface};
+use windows_core::{BOOL, IUnknown, Interface};
 
 use crate::openstaad::command::Command;
 use crate::openstaad::design::Design;
@@ -20,8 +28,7 @@ use crate::openstaad::root::Root;
 use crate::openstaad::support::Support;
 use crate::tools::ComContext;
 use crate::tools::invoke::{invoke_method, invoke_property};
-use crate::tools::value_types::{InType as ptype, MethodSignature, OutType as rtype};
-use std::{collections::HashMap, sync::Arc, thread, time::Duration};
+use std::{ffi::OsStr, mem, os::windows::ffi::OsStrExt, sync::Arc, thread, time::Duration};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct OpenStaad {
@@ -45,7 +52,7 @@ impl OpenStaad {
     pub fn new(system_path: String, std_path: String) -> Result<Self> {
         let com_context = Arc::new(ComContext::new()?);
         let (id, dispatch) = initialize(system_path, std_path)?;
-        let mut instance = Self {
+        let instance = Self {
             id,
             root: Some(Arc::new(Root::new(dispatch))),
             command: None,
@@ -74,7 +81,7 @@ impl OpenStaad {
             }
         };
 
-        let mut instance = Self {
+        let instance = Self {
             id,
             root: Some(Arc::new(Root::new(dispatch))),
             command: None,
@@ -92,7 +99,7 @@ impl OpenStaad {
     pub fn new_by_pid(pid: u32) -> Result<Self> {
         let com_context = ComContext::new()?;
         let dispatch = get_object_by_pid(pid)?;
-        let mut instance = Self {
+        let instance = Self {
             id: pid,
             root: Some(Arc::new(Root::new(dispatch))),
             command: None,
@@ -168,18 +175,14 @@ impl OpenStaad {
     }
 }
 
-fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)> {
-    // let pid = run_no_window(system_path)?;
-    // info!("Started STAAD.Pro process with PID: {}", pid);
+fn initialize(exe_path: String, std_path: String) -> Result<(u32, IDispatch)> {
     // COM is already initialized by ComContext
-    if !std::path::Path::new(&system_path).exists() {
-        bail!("파일이 존재하지 않습니다: {}", system_path);
+    if !std::path::Path::new(&exe_path).exists() {
+        bail!("파일이 존재하지 않습니다: {}", exe_path);
     }
 
-    let child = std::process::Command::new(&system_path)
-        .args(&[std_path.as_str(), "/s"])
-        .spawn()?;
-    let _pid = child.id();
+    let pid = spawn_hidden_process(&exe_path, &std_path)?;
+    info!("Started STAAD.Pro process with PID: {}", pid);
 
     info!("Waiting for STAAD.Pro process to initialize...");
     thread::sleep(Duration::from_millis(5000));
@@ -190,16 +193,16 @@ fn initialize(system_path: String, std_path: String) -> Result<(u32, IDispatch)>
         attempts += 1;
 
         // 먼저 ROT 방식 시도
-        match find_staad_by_process_id(_pid) {
+        match find_staad_by_process_id(pid) {
             Ok(dispatch) => {
-                info!("Success to connect Staad.Pro with pid {} via ROT", _pid);
+                info!("Success to connect Staad.Pro with pid {} via ROT", pid);
                 let _ = waiting(&dispatch)?;
-                return Ok((_pid, dispatch));
+                return Ok((pid, dispatch));
             }
             Err(e) => {
                 if attempts > max_attempts {
                     let _ = std::process::Command::new("taskkill")
-                        .args(&["/PID", _pid.to_string().as_str()])
+                        .args(&["/PID", pid.to_string().as_str()])
                         .spawn()?;
                     bail!(
                         "Staas.Pro가 정상적으로 실행되지 않았거나 STD 파일을 열 수 없어 종료합니다."
@@ -368,81 +371,143 @@ pub fn waiting(dispatch: &IDispatch) -> Result<bool> {
     }
 }
 
-// fn run_no_window(exe_path: String) -> Result<u32> {
-//     // 명령줄 생성
-//     let command_line = format!("\"{}\"", exe_path.as_str());
-//     let mut command_line_wide: Vec<u16> = OsStr::new(&command_line)
-//         .encode_wide()
-//         .chain(std::iter::once(0))
-//         .collect();
+/// Spawns a hidden process using Windows CreateProcessW API
+fn spawn_hidden_process(exe_path: &str, std_path: &str) -> Result<u32> {
+    // Build command line with arguments
+    let command_line = format!("\"{}\" \"{}\" /s", exe_path, std_path);
+    let mut command_line_wide: Vec<u16> = OsStr::new(&command_line)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
 
-//     // STARTUPINFO 구조체 초기화
-//     let mut startup_info: STARTUPINFOW = unsafe { mem::zeroed() };
-//     startup_info.cb = mem::size_of::<STARTUPINFOW>() as u32;
-//     startup_info.dwFlags = STARTF_USESHOWWINDOW;
-//     // startup_info.wShowWindow = SW_HIDE as u16; // 창 숨김
+    // Initialize STARTUPINFOW with hidden window settings
+    let mut startup_info = STARTUPINFOW {
+        cb: mem::size_of::<STARTUPINFOW>() as u32,
+        dwFlags: STARTF_USESHOWWINDOW,
+        ..unsafe { mem::zeroed() }
+    };
 
-//     // PROCESS_INFORMATION 구조체 초기화
-//     let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
+    let mut process_info = unsafe { mem::zeroed::<PROCESS_INFORMATION>() };
 
-//     // CreateProcessW 호출
-//     let result = unsafe {
-//         CreateProcessW(
-//             None,                                        // lpApplicationName
-//             Some(PWSTR(command_line_wide.as_mut_ptr())), // lpCommandLine
-//             None,                                        // lpProcessAttributes
-//             None,                                        // lpThreadAttributes
-//             false,                                       // bInheritHandles
-//             CREATE_NO_WINDOW,                            // dwCreationFlags
-//             None,                                        // lpEnvironment
-//             None,                                        // lpCurrentDirectory
-//             &mut startup_info,                           // lpStartupInfo
-//             &mut process_info,                           // lpProcessInformation
-//         )
-//     };
+    // Create process with no window
+    unsafe {
+        CreateProcessW(
+            None,
+            Some(PWSTR(command_line_wide.as_mut_ptr())),
+            None,
+            None,
+            false,
+            CREATE_NO_WINDOW,
+            None,
+            None,
+            &startup_info,
+            &mut process_info,
+        )
+        .context("Failed to create hidden process")?;
 
-//     if result.is_err() {
-//         bail!("CreateProcessW failed");
-//     }
+        let pid = process_info.dwProcessId;
+        info!("Process created successfully. PID: {}", pid);
 
-//     let pid = process_info.dwProcessId;
-//     info!("Process created successfully. PID: {}", pid);
+        // Verify process is running
+        thread::sleep(Duration::from_millis(500));
 
-//     // 프로세스가 실제로 시작되었는지 확인
-//     unsafe {
-//         // 짧은 시간 대기 후 프로세스 상태 확인
-//         thread::sleep(Duration::from_millis(500));
+        let mut exit_code = 0u32;
+        if GetExitCodeProcess(process_info.hProcess, &mut exit_code).is_ok() {
+            if exit_code == STILL_ACTIVE.0 as u32 {
+                info!("Process {} is running successfully", pid);
+            } else {
+                warn!("Process {} exited with code: {}", pid, exit_code);
+            }
+        } else {
+            warn!("Failed to check process status for PID: {}", pid);
+        }
 
-//         let mut exit_code: u32 = 0;
-//         let exit_result = GetExitCodeProcess(process_info.hProcess, &mut exit_code);
+        // Hide all windows belonging to this process
+        hide_process_windows(pid);
 
-//         if exit_result.is_ok() {
-//             if exit_code == 259 {
-//                 // STILL_ACTIVE
-//                 info!("Process {} is running successfully", pid);
-//             } else {
-//                 warn!("Process {} exited with code: {}", pid, exit_code);
-//             }
-//         } else {
-//             warn!("Failed to check process status for PID: {}", pid);
-//         }
+        // Clean up handles
+        let _ = CloseHandle(process_info.hProcess);
+        let _ = CloseHandle(process_info.hThread);
 
-//         // 핸들 정리
-//         let _ = CloseHandle(process_info.hProcess);
-//         let _ = CloseHandle(process_info.hThread);
+        Ok(pid)
+    }
+}
 
-//         Ok(pid)
-//     }
-// }
+/// Hides all windows belonging to a specific process
+fn hide_process_windows(target_pid: u32) {
+    unsafe {
+        let _ = EnumWindows(Some(enum_windows_callback), LPARAM(target_pid as isize));
+    }
+}
+
+/// Callback function for EnumWindows to hide windows of target process
+unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let target_pid = lparam.0 as u32;
+    let mut window_pid = 0u32;
+
+    unsafe {
+        GetWindowThreadProcessId(hwnd, Some(&mut window_pid));
+
+        if window_pid == target_pid {
+            ShowWindow(hwnd, SW_HIDE);
+            info!("Hidden window for PID: {}", target_pid);
+        }
+    }
+
+    BOOL::from(true) // Continue enumeration
+}
 
 // 리소스 정리
 impl Drop for OpenStaad {
     fn drop(&mut self) {
         info!("Dropping OpenStaad instance with ID: {}", self.id);
 
-        // COM cleanup is handled automatically by ComContext's Drop implementation
-        // Each instance tracks its own COM reference count
+        // Close the application gracefully via COM if possible
+        if let Some(root) = &self.root {
+            unsafe {
+                let _ = invoke_method(&root.dispatch, "Quit", &mut []);
+            }
+        }
 
+        // Wait a bit for graceful shutdown
+        thread::sleep(Duration::from_millis(100));
+
+        // Force terminate if still running
+        if is_process_running(self.id) {
+            warn!("Process {} still running, force terminating...", self.id);
+            let _ = terminate_process(self.id);
+        }
+
+        // COM cleanup is handled automatically by ComContext's Drop implementation
         info!("OpenStaad instance dropped");
+    }
+}
+
+/// Checks if a process is still running
+fn is_process_running(pid: u32) -> bool {
+    unsafe {
+        if let Ok(handle) = OpenProcess(PROCESS_TERMINATE, false, pid) {
+            let mut exit_code = 0u32;
+            if GetExitCodeProcess(handle, &mut exit_code).is_ok() {
+                let _ = CloseHandle(handle);
+                return exit_code == STILL_ACTIVE.0 as u32;
+            }
+            let _ = CloseHandle(handle);
+        }
+        false
+    }
+}
+
+/// Terminates a process forcefully
+fn terminate_process(pid: u32) -> Result<()> {
+    unsafe {
+        let handle = OpenProcess(PROCESS_TERMINATE, false, pid)
+            .context("Failed to open process for termination")?;
+
+        TerminateProcess(handle, 1).context("Failed to terminate process")?;
+
+        info!("Process {} terminated successfully", pid);
+        let _ = CloseHandle(handle);
+        Ok(())
     }
 }

@@ -14,35 +14,32 @@ fn main() -> Result<()> {
         "C:\\Program Files\\Bentley\\Engineering\\STAAD.Pro 2025\\STAAD\\Bentley.Staad.exe"
             .to_string();
     let std_path = "C:\\Users\\kms36\\Downloads\\staa_api_test\\360-PAR-01_Case2.STD";
-    // let mut _openstaad = OpenStaad::new(system_path, std_path.to_string()).map_err(|e| {
+    let mut _openstaad =
+        OpenStaad::new(system_path.clone(), std_path.to_string()).map_err(|e| {
+            error!("Failed to create OpenSTAAD instance: {}", e);
+            e
+        })?;
+    // let mut _openstaad = OpenStaad::new_by_activated().map_err(|e| {
     //     error!("Failed to create OpenSTAAD instance: {}", e);
     //     e
     // })?;
-    let mut _openstaad = OpenStaad::new_by_activated().map_err(|e| {
-        error!("Failed to create OpenSTAAD instance: {}", e);
-        e
-    })?;
     let _root = _openstaad.get_root()?;
-    let _output = _openstaad.get_output()?;
-    let _geometry = _openstaad.get_geometry()?;
-    let _design = _openstaad.get_design()?;
 
-    let mut root = Staad::Root(_root);
-    let mut output = Staad::Output(_output);
-    let mut design = Staad::Design(_design);
+    let root = Staad::Root(_root);
+    let _ = execute_method(&root, "OpenSTAADFile", &[std_path.to_string().into()]);
 
-    let primary_loads = get_load_case_list(&mut _openstaad)?;
-    for load in primary_loads {
-        let item = get_load_item_list(&mut _openstaad, load.id);
-        match item {
-            Ok(v) => {
-                info!("{:#?}", v);
-            }
-            Err(e) => {
-                error!("{:#?}", e);
-            }
-        }
-    }
+    // let primary_loads = get_load_case_list(&mut _openstaad)?;
+    // for load in primary_loads {
+    //     let item = get_load_item_list(&mut _openstaad, load.id);
+    //     match item {
+    //         Ok(v) => {
+    //             info!("{:#?}", v);
+    //         }
+    //         Err(e) => {
+    //             error!("{:#?}", e);
+    //         }
+    //     }
+    // }
 
     Ok(())
 }

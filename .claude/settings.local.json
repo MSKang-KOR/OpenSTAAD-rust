@@ -1,8 +1,9 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
     "allow": [
-      "mcp__ide__getDiagnostics"
-    ]
+      "mcp__ide__getDiagnostics",
+      "Bash(cargo build:*)"
+    ],
+    "defaultMode": "acceptEdits"
   }
 }
