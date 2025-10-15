@@ -1,15 +1,20 @@
+pub mod bindings;
+pub mod openstaad;
+pub mod tools;
+
 use anyhow::{Result, anyhow};
 use chrono::Local;
 use log::{error, info, warn};
-use openstaad_rust::openstaad::{
-    app::OpenStaad, bindings::Staad, custom::*, execute::execute_method,
+use openstaad_rust::{
+    bindings::Staad,
+    openstaad::app::OpenStaad,
+    tools::{custom::get_beam_table, execute_method},
 };
 use std::fs::OpenOptions;
 
 fn main() -> Result<()> {
     // Initialize file logging with timestamp
     setup_file_logging()?;
-
     let system_path =
         "C:\\Program Files\\Bentley\\Engineering\\STAAD.Pro 2025\\STAAD\\Bentley.Staad.exe"
             .to_string();

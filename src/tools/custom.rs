@@ -1,11 +1,8 @@
 use crate::{
-    openstaad::{
-        app::OpenStaad,
-        bindings::{support::SupportObj, *},
-        execute::{self, execute_method},
-    },
+    bindings::*,
+    openstaad::app::OpenStaad,
     tools::{
-        SafeArrayP, invoke_method,
+        SafeArrayP, execute_method, invoke_method,
         notify::watch_file_background,
         sa_to_vec1d,
         unit::{round_with_factor, unit_factor},
@@ -13,11 +10,9 @@ use crate::{
     },
 };
 use anyhow::{Context, Result, anyhow, bail};
-use chrono::format;
-use log::{error, info, warn};
+use log::warn;
 use serde_json::{Value, json};
-use std::thread;
-use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::Path, sync::Arc};
 use tauri::{AppHandle, Emitter};
 use windows::Win32::System::{
     Com::{IDispatch, SAFEARRAY},

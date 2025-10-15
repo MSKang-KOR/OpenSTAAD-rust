@@ -1,17 +1,17 @@
-[2025-10-15 10:49:44.649] [INFO] [src\tools\com_context.rs:25] COM initialized for thread ThreadId(1)
-[2025-10-15 10:49:44.650] [INFO] [src\tools\com_context.rs:41] COM reference count for thread ThreadId(1): 1
-[2025-10-15 10:49:44.656] [INFO] [src\openstaad\app.rs:411] Process created successfully. PID: 35296
-[2025-10-15 10:49:45.157] [INFO] [src\openstaad\app.rs:419] Process 35296 is running successfully
-[2025-10-15 10:49:45.157] [INFO] [src\openstaad\app.rs:455] Hidden window for PID: 35296
-[2025-10-15 10:49:45.157] [INFO] [src\openstaad\app.rs:455] Hidden window for PID: 35296
-[2025-10-15 10:49:45.157] [INFO] [src\openstaad\app.rs:455] Hidden window for PID: 35296
-[2025-10-15 10:49:45.158] [INFO] [src\openstaad\app.rs:455] Hidden window for PID: 35296
-[2025-10-15 10:49:45.158] [INFO] [src\openstaad\app.rs:455] Hidden window for PID: 35296
-[2025-10-15 10:49:45.158] [INFO] [src\openstaad\app.rs:185] Started STAAD.Pro process with PID: 35296
-[2025-10-15 10:49:45.158] [INFO] [src\openstaad\app.rs:187] Waiting for STAAD.Pro process to initialize...
-[2025-10-15 10:49:53.300] [INFO] [src\openstaad\app.rs:326] TargetPid: 35296, CurrentPid: 35296
-[2025-10-15 10:49:53.301] [INFO] [src\openstaad\app.rs:301] 대상 PID 35296와 일치하는 STAAD 인스턴스를 찾았습니다
-[2025-10-15 10:49:53.301] [INFO] [src\openstaad\app.rs:198] Success to connect Staad.Pro with pid 35296 via ROT
-[2025-10-15 10:49:53.302] [INFO] [src\openstaad\app.rs:465] Dropping OpenStaad instance with ID: 35296
-[2025-10-15 10:49:53.423] [INFO] [src\openstaad\app.rs:484] OpenStaad instance dropped
-[2025-10-15 10:49:53.425] [INFO] [src\tools\com_context.rs:60] COM uninitialized for thread ThreadId(1)
+[2025-10-15 11:21:15.459] [INFO] [src\tools\com_context.rs:25] COM initialized for thread ThreadId(1)
+[2025-10-15 11:21:15.460] [INFO] [src\tools\com_context.rs:41] COM reference count for thread ThreadId(1): 1
+[2025-10-15 11:21:15.466] [INFO] [src\openstaad\app.rs:409] Process created successfully. PID: 21048
+[2025-10-15 11:21:15.967] [INFO] [src\openstaad\app.rs:417] Process 21048 is running successfully
+[2025-10-15 11:21:15.968] [INFO] [src\openstaad\app.rs:453] Hidden window for PID: 21048
+[2025-10-15 11:21:15.968] [INFO] [src\openstaad\app.rs:453] Hidden window for PID: 21048
+[2025-10-15 11:21:15.968] [INFO] [src\openstaad\app.rs:185] Started STAAD.Pro process with PID: 21048
+[2025-10-15 11:21:15.968] [INFO] [src\openstaad\app.rs:187] Waiting for STAAD.Pro process to initialize...
+[2025-10-15 11:21:25.071] [INFO] [src\openstaad\app.rs:326] TargetPid: 21048, CurrentPid: 21048
+[2025-10-15 11:21:25.071] [INFO] [src\openstaad\app.rs:301] 대상 PID 21048와 일치하는 STAAD 인스턴스를 찾았습니다
+[2025-10-15 11:21:25.071] [INFO] [src\openstaad\app.rs:198] Success to connect Staad.Pro with pid 21048 via ROT
+[2025-10-15 11:21:25.071] [INFO] [src\openstaad\app.rs:358] Waiting for loading std..: 1
+[2025-10-15 11:21:28.076] [INFO] [src\openstaad\app.rs:358] Waiting for loading std..: 2
+[2025-10-15 11:21:31.078] [INFO] [src\openstaad\app.rs:358] Waiting for loading std..: 3
+[2025-10-15 11:21:34.091] [INFO] [src\openstaad\app.rs:463] Dropping OpenStaad instance with ID: 21048
+[2025-10-15 11:21:34.436] [INFO] [src\openstaad\app.rs:482] OpenStaad instance dropped
+[2025-10-15 11:21:35.999] [INFO] [src\tools\com_context.rs:60] COM uninitialized for thread ThreadId(1)

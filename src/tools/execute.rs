@@ -20,15 +20,12 @@ use windows::Win32::{
 };
 use windows_core::{BSTR, HSTRING, PCWSTR};
 
-// use crate::tools::value_types::count_general_input;
-use crate::{
-    openstaad::bindings::Staad,
-    tools::{
-        invoke::invoke_method,
-        value_types::{InType, Input, OutType},
-        variant::SafeArrayP,
-        variant_with_ptr_from,
-    },
+use crate::bindings::Staad;
+use crate::tools::{
+    invoke::invoke_method,
+    value_types::{InType, Input, OutType},
+    variant::SafeArrayP,
+    variant_with_ptr_from,
 };
 
 pub fn execute_method(instance: &Staad, method: &str, params: &[Input]) -> Result<Value> {

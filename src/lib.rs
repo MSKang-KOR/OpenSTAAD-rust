@@ -1,3 +1,4 @@
+pub mod bindings;
 pub mod openstaad;
 pub mod tools;
 
@@ -12,9 +13,9 @@ use windows::Win32::System::Variant::VARIANT;
 
 use serde_json::{Value, json};
 
+use crate::bindings::Staad;
 use crate::openstaad::app::{self, OpenStaad};
-use crate::openstaad::{bindings::Staad, custom::*, execute::execute_method};
-use crate::tools::{InType, Input, invoke_method};
+use crate::tools::{InType, Input, custom::*, execute_method, invoke_method};
 
 type StorageType = Arc<Mutex<HashMap<u32, OpenStaad>>>;
 pub static STAAD_MANAGER: LazyLock<Mutex<Option<StorageType>>> = LazyLock::new(|| Mutex::new(None));

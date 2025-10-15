@@ -12,7 +12,7 @@ use windows::Win32::System::{
 use windows_core::BSTR;
 
 use crate::{
-    openstaad::bindings::MemberSteelDgnParams,
+    bindings::MemberSteelDgnParams,
     tools::{
         safe_array_from_vec1d, safe_array_from_vec2d, variant::SafeArray, variant_with_ptr_from,
         variant_with_ptr_to,
