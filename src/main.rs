@@ -10,7 +10,7 @@ use openstaad_rust::{
     bindings::Staad,
     openstaad::app::OpenStaad,
     parser::{
-        parsing_std_loading,
+        parsing_loadings, parsing_specifications,
         section::{parse_keys, parse_nodal_load},
     },
     tools::{custom::get_beam_table, execute_method},
@@ -44,8 +44,9 @@ fn main() -> Result<()> {
 
     let content = read_to_string(std_path)?;
 
-    let loading = parsing_std_loading(content)?;
-    info!("{:#?}", loading);
+    // let loading = parsing_loading(content.clone())?;
+    let specs = parsing_specifications(content.clone())?;
+    // info!("{:#?}", loading);
     Ok(())
 }
 

@@ -6,6 +6,7 @@ pub mod tools;
 pub use anyhow::{Context, Error, Result, anyhow, bail};
 pub use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs::read_to_string;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::thread::{self, JoinHandle};
 use tauri::AppHandle;
@@ -16,6 +17,7 @@ use serde_json::{Value, json};
 
 use crate::bindings::Staad;
 use crate::openstaad::app::{self, OpenStaad};
+use crate::parser::{parsing_loadings, parsing_specifications};
 use crate::tools::{InType, Input, custom::*, execute_method, invoke_method};
 
 type StorageType = Arc<Mutex<HashMap<u32, OpenStaad>>>;
@@ -262,9 +264,22 @@ pub fn handle_custom_method(
             let v = get_design_results(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
-        "get_loadings" => {
-            let std_path = params[0].as_str().ok_or("Missing std_path parameter")?.to_string();
-            let v = get_loadings(std_path).map_err(|e| e.to_string())?;
+        "parsing_loadings" => {
+            let std_path = params[0]
+                .as_str()
+                .ok_or("Missing std_path parameter")?
+                .to_string();
+            let content = read_to_string(std_path).map_err(|e| e.to_string())?;
+            let v = parsing_loadings(content).map_err(|e| e.to_string())?;
+            serde_json::to_value(v).map_err(|e| e.to_string())
+        }
+        "parsing_specifications" => {
+            let std_path = params[0]
+                .as_str()
+                .ok_or("Missing std_path parameter")?
+                .to_string();
+            let content = read_to_string(std_path).map_err(|e| e.to_string())?;
+            let v = parsing_specifications(content).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         _ => return Err(format!("Invalid custom method name: {}", method)),

@@ -34,6 +34,17 @@ pub static REGEX_WIND_LOAD_ST: Lazy<Regex> =
 // IDs
 pub static REGEX_RANGE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"\s*(\d+)\s+TO\s+(\d+)\s*").unwrap());
+
+// Member Release
+pub static REGEX_RELEASE_LOCATION: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\b(START|END|BOTH)\s*").unwrap());
+pub static REGEX_RELEASE_RESTRAINT: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\b(FX|FY|FZ|MX|MY|MZ)\s*").unwrap());
+pub static REGEX_RELEASE_SPRING: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\b(KFX|KFY|KFZ|KMX|KMY|KMZ)\s+([-+]?\d*\.?\d+)\s*").unwrap());
+pub static REGEX_RELEASE_PARTIAL_MOMENT: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\b(MP|MPX|MPY|MPZ)\s+([-+]?\d*\.?\d+)\s*").unwrap());
+
 // Nodal Load
 pub static REGEX_INDIVIDUAL: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b(\d+)\b").unwrap());
 pub static REGEX_NODAL_LOAD_VALIDATION: Lazy<Regex> =
@@ -75,6 +86,7 @@ pub static REGEX_REF_LOAD_PATTERN: Lazy<Regex> =
 pub static REGEX_NOTIONAL_LOAD_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(\S+)\s+([XYZ])\s+([-+]?\d+(?:\.\d+)?)").unwrap());
 // Wind Load
-pub static REGEX_WIND_LOAD_ITEM_TYPE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b(INT)\s+").unwrap());
+pub static REGEX_WIND_LOAD_ITEM_TYPE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\b(INT)\s+").unwrap());
 pub static REGEX_WIND_LOAD_INTENSITY_TABLE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"\s+([-+]?\d+(?:\.\d*)?)").unwrap());

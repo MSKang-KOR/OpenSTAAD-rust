@@ -13,10 +13,10 @@ pub struct BeamTableRow {
     pub id: i32,
     pub i: i32,
     pub j: i32,
-    pub property: i32,
-    pub material: String,
-    pub beta: f64,
-    pub length: f64,
+    // pub property: i32,
+    // pub material: String,
+    // pub beta: f64,
+    // pub length: f64,
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SectionObj {

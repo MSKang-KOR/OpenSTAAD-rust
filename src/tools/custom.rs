@@ -1,7 +1,14 @@
 use crate::{
-    bindings::*, openstaad::app::OpenStaad, parser::parsing_std_loading, tools::{
-        execute_method, invoke_method, notify::watch_file_background, sa_to_vec1d, unit::{round_with_factor, unit_factor}, variant_with_ptr_from, SafeArrayP
-    }
+    bindings::*,
+    openstaad::app::OpenStaad,
+    parser::parsing_loadings,
+    tools::{
+        SafeArrayP, execute_method, invoke_method,
+        notify::watch_file_background,
+        sa_to_vec1d,
+        unit::{round_with_factor, unit_factor},
+        variant_with_ptr_from,
+    },
 };
 use anyhow::{Context, Result, anyhow, bail};
 use log::warn;
@@ -128,30 +135,30 @@ pub fn get_beam_table(openstaad: &mut OpenStaad) -> Result<Vec<BeamTableRow>> {
                 ],
             )?;
 
-            let prop_ref_var = invoke_method(
-                &prop.dispatch,
-                "GetBeamSectionPropertyRefNo",
-                &mut [n.into()],
-            )?;
-            let prop_ref = VariantToInt32(&prop_ref_var as *const VARIANT)?;
+            // let prop_ref_var = invoke_method(
+            //     &prop.dispatch,
+            //     "GetBeamSectionPropertyRefNo",
+            //     &mut [n.into()],
+            // )?;
+            // let prop_ref = VariantToInt32(&prop_ref_var as *const VARIANT)?;
 
-            let mat_var = invoke_method(&prop.dispatch, "GetBeamMaterialName", &mut [n.into()])?;
-            let mat_pwstr = VariantToStringAlloc(&mat_var as *const VARIANT)?;
-            let mat = mat_pwstr.to_string()?;
+            // let mat_var = invoke_method(&prop.dispatch, "GetBeamMaterialName", &mut [n.into()])?;
+            // let mat_pwstr = VariantToStringAlloc(&mat_var as *const VARIANT)?;
+            // let mat = mat_pwstr.to_string()?;
 
-            let beta_var = invoke_method(&prop.dispatch, "GetBetaAngle", &mut [n.into()])?;
-            let beta = VariantToDouble(&beta_var as *const VARIANT)?;
+            // let beta_var = invoke_method(&prop.dispatch, "GetBetaAngle", &mut [n.into()])?;
+            // let beta = VariantToDouble(&beta_var as *const VARIANT)?;
 
-            let length_var = invoke_method(&geo.dispatch, "GetBeamLength", &mut [n.into()])?;
-            let length = VariantToDouble(&length_var as *const VARIANT)?;
+            // let length_var = invoke_method(&geo.dispatch, "GetBeamLength", &mut [n.into()])?;
+            // let length = VariantToDouble(&length_var as *const VARIANT)?;
             let row = BeamTableRow {
                 id: n,
                 i: *node_a_ptr,
                 j: *node_b_ptr,
-                property: prop_ref,
-                material: mat,
-                beta,
-                length: length * lf,
+                // property: prop_ref,
+                // material: mat,
+                // beta,
+                // length: length * lf,
             };
             beams_table.push(row);
         }
@@ -1082,10 +1089,4 @@ pub fn get_design_results(openstaad: &mut OpenStaad) -> Result<Vec<(MemberSteelD
         }
     }
     Ok(list)
-}
-
-pub fn get_loadings(std_path: String) -> Result<Loading> {
-    let content = read_to_string(std_path)?;
-
-    parsing_std_loading(content)
 }

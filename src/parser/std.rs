@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
-use log::warn;
+use log::{info, warn};
 use regex::Regex;
-use serde_json::json;
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
@@ -12,21 +12,22 @@ use crate::{
     parser::{regex::*, section::*},
 };
 
-pub fn parsing_std_loading(text: String) -> Result<Loading> {
+const JOB: &str = "START JOB INFORMATION";
+const JOINT: &str = "JOINT COORDINATES";
+const MEMBER: &str = "MEMBER INCIDENCES";
+const GROUP: &str = "START GROUP DEFINITION";
+const RELEASE: &str = "MEMBER RELEASE";
+const TRUSS: &str = "MEMBER TRUSS";
+const USERSECTION: &str = "MEMBER PROPERTY";
+const SECTION: &str = "MEMBER PROPERTY EUROPEAN";
+const CONSTANTS: &str = "CONSTANTS";
+const MATERIAL: &str = "DEFINE MATERIAL START";
+const SUPPORT: &str = "SUPPORTS";
+const REFERENCELOAD: &str = "DEFINE REFERENCE LOADS";
+const WINDLOAD: &str = "DEFINE WIND LOAD";
+
+pub fn parsing_loadings(text: String) -> Result<Loading> {
     // Parsing spec
-    const JOB: &str = "START JOB INFORMATION";
-    const JOINT: &str = "JOINT COORDINATES";
-    const MEMBER: &str = "MEMBER INCIDENCES";
-    const GROUP: &str = "START GROUP DEFINITION";
-    const RELEASE: &str = "MEMBER RELEASE";
-    const TRUSS: &str = "MEMBER TRUSS";
-    const USERSECTION: &str = "MEMBER PROPERTY";
-    const SECTION: &str = "MEMBER PROPERTY EUROPEAN";
-    const CONSTANTS: &str = "CONSTANTS";
-    const MATERIAL: &str = "DEFINE MATERIAL START";
-    const SUPPORT: &str = "SUPPORTS";
-    const REFERENCELOAD: &str = "DEFINE REFERENCE LOADS";
-    const WINDLOAD: &str = "DEFINE WIND LOAD";
 
     let mut lines: Vec<String> = text.lines().map(|s| s.to_string()).collect();
 
@@ -60,10 +61,10 @@ pub fn parsing_std_loading(text: String) -> Result<Loading> {
     let mut load_case_details: Vec<PrimiryLoad> = vec![];
     let mut load_case_index: usize = 0;
 
+    let mut load_item_index: usize = 0;
+
     let mut wind_defs: Vec<WindDefinition> = vec![];
     let mut wind_def_index: usize = 0;
-
-    let mut load_item_index: usize = 0;
 
     fn load_item_parser(load_item_type: &str, line: &str) -> Result<LoadItemObj> {
         if !load_item_type.to_string().contains(" LOAD") {
@@ -84,7 +85,6 @@ pub fn parsing_std_loading(text: String) -> Result<Loading> {
         }
     }
 
-    let mut i = 0;
     for (i, _) in text.lines().enumerate() {
         let line = &lines[i];
         if line.starts_with('*') {
@@ -318,4 +318,101 @@ pub fn parsing_std_loading(text: String) -> Result<Loading> {
         load_case_details,
         load_envelopes: vec![],
     })
+}
+
+pub fn parsing_specifications(text: String) -> Result<Vec<Value>> {
+    let mut lines: Vec<String> = text.lines().map(|s| s.to_string()).collect();
+
+    let mut def_map: HashMap<&str, bool> = vec![
+        JOB,
+        JOINT,
+        MEMBER,
+        GROUP,
+        RELEASE,
+        TRUSS,
+        USERSECTION,
+        SECTION,
+        CONSTANTS,
+        MATERIAL,
+        SUPPORT,
+        REFERENCELOAD,
+        WINDLOAD,
+    ]
+    .into_iter()
+    .map(|e| (e, false))
+    .collect();
+
+    let mut material_entries: Vec<(String, String)> = Vec::new();
+
+    let mut spec_index: usize = 0;
+    let mut specifications: Vec<Value> = vec![];
+    for (i, _) in text.lines().enumerate() {
+        let line = &lines[i];
+        if line.starts_with('*') {
+            continue;
+        }
+        // Handle line continuation
+        if REGEX_CONNECT_ST.is_match(&line) {
+            if i + 1 < lines.len() {
+                let continued =
+                    REGEX_CONNECT_ST.replace(&lines[i], " ").to_string() + &lines[i + 1];
+                lines[i + 1] = continued;
+                continue;
+            }
+        }
+
+        let is_upper = REGEX_UPPER_ST.is_match(&line);
+        let is_command = REGEX_COMMAND_ST.is_match(&line);
+        let is_end = REGEX_END_ST.is_match(&line);
+        let is_next = is_upper || is_command || is_end;
+
+        // Current work
+        if is_next {
+            let keys_to_update: Vec<&str> = def_map
+                .iter()
+                .filter(|(_, v)| **v)
+                .map(|(&k, _)| k)
+                .collect();
+
+            for k in keys_to_update {
+                if [REFERENCELOAD, WINDLOAD, GROUP, MATERIAL].contains(&k) {
+                    if REGEX_END_ST.is_match(&line) {
+                        if k == MATERIAL {
+                            let _mat: HashMap<String, String> =
+                                material_entries.iter().cloned().collect();
+                        }
+                        def_map.insert(k, false);
+                    }
+                } else {
+                    def_map.insert(k, false);
+                }
+            }
+            if let Some(&key) = def_map.keys().find(|&&k| line.contains(k)) {
+                def_map.insert(key, true);
+            }
+        }
+
+        // Member Release
+        if *def_map.get(RELEASE).unwrap_or(&false) {
+            let mut parsed = parse_member_release(&line);
+            if let Ok(ref mut release) = parsed {
+                specifications.push(json!(release));
+                spec_index = specifications.len()
+            }
+        }
+
+        // Member Truss
+        if *def_map.get(TRUSS).unwrap_or(&false) {
+            let mut parsed = parse_member_truss(&line);
+            if let Ok(ref mut truss) = parsed {
+                if !line.contains(TRUSS) {
+                    truss.id = (spec_index as u32) + 1;
+                    specifications.push(json!(truss));
+                    spec_index = specifications.len()
+                }
+            }
+        }
+    }
+
+    Ok(specifications)
 }

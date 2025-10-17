@@ -1,13 +1,14 @@
 use anyhow::{Context, Result, anyhow, bail};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use serde_json::json;
+use serde_json::{Value, json};
 use std::collections::HashSet;
 
 use crate::{
     bindings::{
         Axis, ConcentratedForce, FloorLoadGroup, LoadItemAttribute, LoadItemObj, LoadItemType,
-        NodalLoad, NotionalLoadData, ReferenceLoadData, RepeatLoadData, Temperature, UniformForce,
+        NodalLoad, NotionalLoadData, ReferenceLoadData, Release, RepeatLoadData, Temperature,
+        Truss, UniformForce,
     },
     parser::regex::*,
 };
@@ -20,7 +21,6 @@ pub fn parse_keys(s: &str) -> Vec<i32> {
     for cap in REGEX_RANGE.captures_iter(s) {
         let start: i32 = cap[1].parse().unwrap();
         let end: i32 = cap[2].parse().unwrap();
-
         for i in start..=end {
             if seen.insert(i) {
                 keys.push(i);
@@ -42,6 +42,106 @@ pub fn parse_keys(s: &str) -> Vec<i32> {
     keys.sort_unstable();
 
     keys
+}
+
+pub fn parse_member_release(s: &str) -> Result<Release> {
+    // Location 매칭
+    let location_match = REGEX_RELEASE_LOCATION.find(s);
+    if location_match.is_none() {
+        bail!("Not member release: {}", s);
+    }
+
+    fn release_index_and_type(force: &str) -> Result<(usize, i64)> {
+        let r: (usize, i64) = match force {
+            "FX" => (0, 1),
+            "FY" => (1, 1),
+            "FZ" => (2, 1),
+            "MX" => (3, 1),
+            "MY" => (4, 1),
+            "MZ" => (5, 1),
+            "KFX" => (0, -1),
+            "KFY" => (1, -1),
+            "KFZ" => (2, -1),
+            "KMX" => (3, -1),
+            "KMY" => (4, -1),
+            "KMZ" => (5, -1),
+            "MPX" => (3, -2),
+            "MPY" => (4, -2),
+            "MPZ" => (5, -2),
+            "MP" => (6, -3),
+            _ => bail!("Invalid releas force type: {}", force),
+        };
+        Ok(r)
+    }
+
+    let location_cap = location_match.unwrap();
+    let split_index = location_cap.start();
+    let key_part = &s[..split_index];
+    let assigned = json!(parse_keys(key_part));
+    let location = location_match.unwrap().as_str().trim().to_string();
+    let location_code = match location.as_str() {
+        "START" => 0,
+        "END" => 1,
+        _ => bail!("Invalid location type: {}", location),
+    };
+    let mut name = format!("{}", location);
+    let mut release_array: [i64; 6] = [0, 0, 0, 0, 0, 0];
+    let mut spring_array: [f64; 6] = [0., 0., 0., 0., 0., 0.];
+    let mut mp_array: [f64; 3] = [0., 0., 0.];
+    let mut mp: f64 = 0.;
+    let mut is_partial_moment = false;
+
+    for cap in REGEX_RELEASE_RESTRAINT.captures_iter(s) {
+        let (i, type_code) = release_index_and_type(&cap[1])?;
+        release_array[i] = type_code;
+
+        name += format!(" {}", &cap[1]).as_str();
+    }
+    for cap in REGEX_RELEASE_SPRING.captures_iter(s) {
+        let (i, type_code) = release_index_and_type(&cap[1])?;
+        let val = cap[2].parse::<f64>()?;
+        release_array[i] = type_code;
+        spring_array[i] = val;
+
+        name += format!(" {} {}", &cap[1], &val).as_str();
+    }
+    for cap in REGEX_RELEASE_PARTIAL_MOMENT.captures_iter(s) {
+        let (i, type_code) = release_index_and_type(&cap[1])?;
+        let val = cap[2].parse::<f64>()?;
+        is_partial_moment = true;
+        if i == 6 {
+            release_array = [0, 0, 0, -3, -3, -3];
+            mp = val;
+        } else {
+            release_array[i - 3] = 0;
+            release_array[i] = type_code;
+            mp_array[i] = val;
+        }
+        name += format!(" {} {}", &cap[1], &val).as_str();
+    }
+
+    Ok(Release {
+        id: 0,
+        name: json!(name),
+        r#type: json!(-1),
+        assigned: json!(assigned),
+        location: location_code,
+        is_partial_moment,
+        release_array: json!(release_array),
+        spring_array: json!(spring_array),
+        mp_array: json!(mp_array),
+        mp: json!(mp),
+    })
+}
+
+pub fn parse_member_truss(s: &str) -> Result<Truss> {
+    let assigned = parse_keys(s);
+    Ok(Truss {
+        id: 0,
+        name: json!("MEMBER TRUSS"),
+        r#type: json!(0),
+        assigned: json!(assigned),
+    })
 }
 
 pub fn parse_nodal_load(s: &str) -> Result<LoadItemObj> {
