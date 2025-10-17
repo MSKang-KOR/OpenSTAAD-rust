@@ -40,7 +40,7 @@ impl Axis {
             Self::Error => "ERROR",
         }
     }
-    pub fn from(value: Value) -> Self {
+    pub fn from_value(value: Value) -> Self {
         let n = value.as_i64().unwrap() as i8;
         match n {
             1 => Self::X,
@@ -53,6 +53,20 @@ impl Axis {
             8 => Self::PY,
             9 => Self::PZ,
             _ => Self::Error,
+        }
+    }
+    pub fn str_to_code(str: &str) -> i64 {
+        match str {
+            "X" => 1,
+            "Y" => 2,
+            "Z" => 3,
+            "GX" => 4,
+            "GY" => 5,
+            "GZ" => 6,
+            "PX" => 7,
+            "PY" => 8,
+            "PZ" => 9,
+            _ => -1,
         }
     }
 }

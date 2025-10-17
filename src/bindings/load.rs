@@ -1,8 +1,44 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Loading {
+    pub definitions: Definitions,
+    pub load_case_details: Vec<PrimiryLoad>,
+    pub load_envelopes: Vec<PrimiryLoad>,
+}
+
+impl Loading {
+    pub fn default() -> Self {
+        Self {
+            definitions: Definitions {
+                reference_load: vec![],
+                wind: vec![],
+            },
+            load_case_details: vec![],
+            load_envelopes: vec![],
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Definitions {
+    pub reference_load: Vec<PrimiryLoad>,
+    pub wind: Vec<WindDefinition>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindDefinition {
+    pub id: u64,
+    pub name: String,
+    pub children: Vec<LoadItemObj>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
-pub enum PrimaryLoadType {
+pub enum PrimiryLoadType {
     Error = -1,
     Dead = 0,
     Live = 1,
@@ -29,7 +65,7 @@ pub enum PrimaryLoadType {
     Push = 22,
     None = 23,
 }
-impl PrimaryLoadType {
+impl PrimiryLoadType {
     pub fn as_code(&self) -> Value {
         json!(*self as i8)
     }
@@ -123,6 +159,35 @@ impl PrimaryLoadType {
             _ => Self::Error,
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PrimiryLoad {
+    pub id: Value,     // i32
+    pub r#type: Value, // String (ReferenceLoadType Code)
+    pub title: Value,  // String
+    pub children: Vec<LoadItemObj>,
+}
+
+impl PrimiryLoad {
+    pub fn default() -> Self {
+        Self {
+            id: json!(0),
+            r#type: json!(-1),
+            title: json!(""),
+            children: vec![],
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LoadItemObj {
+    pub id: Value,        // usize
+    pub index: Value,     // usize
+    pub r#type: Value,    // i8 (LoadItemType Code)
+    pub name: Value,      // String
+    pub assigned: Value,  // Vec<i32>
+    pub attribute: Value, // LoadItemAttribute
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
@@ -293,6 +358,7 @@ pub enum LoadItemAttribute {
     UniformMoment(UniformMoment),
     SelfWeight(SelfWeight),
     FloorLoadGroup(FloorLoadGroup),
+    Temperature(Temperature),
     RepeatLoadData(RepeatLoadData),
     ReferenceLoadData(ReferenceLoadData),
     NotionalLoadData(NotionalLoadData),
@@ -346,7 +412,16 @@ pub struct SelfWeight {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct FloorLoadGroup {
-    // FloorLoadGroup도 보통 별도의 데이터가 필요하지 않음
+    pub group: String,
+    pub pressure: f64,
+    pub direction: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Temperature {
+    pub axial_elongation: f64,
+    pub top_to_bottom: f64,
+    pub side_to_side: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

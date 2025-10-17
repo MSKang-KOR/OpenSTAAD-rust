@@ -1,5 +1,6 @@
 pub mod bindings;
 pub mod openstaad;
+pub mod parser;
 pub mod tools;
 
 pub use anyhow::{Context, Error, Result, anyhow, bail};
@@ -259,6 +260,11 @@ pub fn handle_custom_method(
         }
         "get_design_results" => {
             let v = get_design_results(openstaad).map_err(|e| e.to_string())?;
+            serde_json::to_value(v).map_err(|e| e.to_string())
+        }
+        "get_loadings" => {
+            let std_path = params[0].as_str().ok_or("Missing std_path parameter")?.to_string();
+            let v = get_loadings(std_path).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
         _ => return Err(format!("Invalid custom method name: {}", method)),

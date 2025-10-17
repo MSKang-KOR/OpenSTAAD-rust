@@ -1,5 +1,6 @@
 pub mod bindings;
 pub mod openstaad;
+pub mod parser;
 pub mod tools;
 
 use anyhow::{Result, anyhow};
@@ -8,9 +9,14 @@ use log::{error, info, warn};
 use openstaad_rust::{
     bindings::Staad,
     openstaad::app::OpenStaad,
+    parser::{
+        parsing_std_loading,
+        section::{parse_keys, parse_nodal_load},
+    },
     tools::{custom::get_beam_table, execute_method},
 };
-use std::fs::OpenOptions;
+use regex::Regex;
+use std::fs::{self, OpenOptions, read_to_string};
 
 fn main() -> Result<()> {
     // Initialize file logging with timestamp
@@ -19,33 +25,27 @@ fn main() -> Result<()> {
         "C:\\Program Files\\Bentley\\Engineering\\STAAD.Pro 2025\\STAAD\\Bentley.Staad.exe"
             .to_string();
     let std_path = "C:\\Users\\kms36\\Downloads\\staa_api_test\\360-PAR-01_Case2.STD";
-    let mut _openstaad =
-        OpenStaad::new(system_path.clone(), std_path.to_string()).map_err(|e| {
-            error!("Failed to create OpenSTAAD instance: {}", e);
-            e
-        })?;
-    // let mut _openstaad = OpenStaad::new_by_activated().map_err(|e| {
-    //     error!("Failed to create OpenSTAAD instance: {}", e);
-    //     e
-    // })?;
-    let _root = _openstaad.get_root()?;
+    // let mut _openstaad =
+    //     OpenStaad::new(system_path.clone(), std_path.to_string()).map_err(|e| {
+    //         error!("Failed to create OpenSTAAD instance: {}", e);
+    //         e
+    //     })?;
+    // // let mut _openstaad = OpenStaad::new_by_activated().map_err(|e| {
+    // //     error!("Failed to create OpenSTAAD instance: {}", e);
+    // //     e
+    // // })?;
+    // let _root = _openstaad.get_root()?;
 
-    let root = Staad::Root(_root);
-    let _ = execute_method(&root, "OpenSTAADFile", &[std_path.to_string().into()]);
+    // let root = Staad::Root(_root);
+    // let _ = execute_method(&root, "OpenSTAADFile", &[std_path.to_string().into()]);
 
-    // let primary_loads = get_load_case_list(&mut _openstaad)?;
-    // for load in primary_loads {
-    //     let item = get_load_item_list(&mut _openstaad, load.id);
-    //     match item {
-    //         Ok(v) => {
-    //             info!("{:#?}", v);
-    //         }
-    //         Err(e) => {
-    //             error!("{:#?}", e);
-    //         }
-    //     }
-    // }
+    let _str = "20 25 28 31 34 37 40 43 FY -2.16";
+    let _keys = parse_nodal_load(_str);
 
+    let content = read_to_string(std_path)?;
+
+    let loading = parsing_std_loading(content)?;
+    info!("{:#?}", loading);
     Ok(())
 }
 

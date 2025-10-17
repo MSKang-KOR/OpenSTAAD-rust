@@ -1,18 +1,12 @@
 use crate::{
-    bindings::*,
-    openstaad::app::OpenStaad,
-    tools::{
-        SafeArrayP, execute_method, invoke_method,
-        notify::watch_file_background,
-        sa_to_vec1d,
-        unit::{round_with_factor, unit_factor},
-        variant_with_ptr_from,
-    },
+    bindings::*, openstaad::app::OpenStaad, parser::parsing_std_loading, tools::{
+        execute_method, invoke_method, notify::watch_file_background, sa_to_vec1d, unit::{round_with_factor, unit_factor}, variant_with_ptr_from, SafeArrayP
+    }
 };
 use anyhow::{Context, Result, anyhow, bail};
 use log::warn;
 use serde_json::{Value, json};
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, fs::read_to_string, path::Path, sync::Arc};
 use tauri::{AppHandle, Emitter};
 use windows::Win32::System::{
     Com::{IDispatch, SAFEARRAY},
@@ -150,7 +144,6 @@ pub fn get_beam_table(openstaad: &mut OpenStaad) -> Result<Vec<BeamTableRow>> {
 
             let length_var = invoke_method(&geo.dispatch, "GetBeamLength", &mut [n.into()])?;
             let length = VariantToDouble(&length_var as *const VARIANT)?;
-
             let row = BeamTableRow {
                 id: n,
                 i: *node_a_ptr,
@@ -188,12 +181,14 @@ pub fn get_section_list(openstaad: &mut OpenStaad) -> Result<Vec<SectionObj>> {
         let name_result = execute_method(&property, "GetSectionPropertyName", &[_id.into()])?;
         let name = name_result[1].clone();
 
-        let assigned_result = execute_method(
+        let assigned = match execute_method(
             &property,
             "GetSectionPropertyAssignedBeamList",
             &[_id.into()],
-        )?;
-        let assigned = assigned_result[1].clone();
+        ) {
+            Ok(v) => v[1].clone(),
+            Err(e) => json!([]),
+        };
 
         tb.push(SectionObj {
             id,
@@ -607,10 +602,10 @@ pub fn get_support_list(openstaad: &mut OpenStaad) -> Result<Vec<SupportObj>> {
     Ok(list)
 }
 
-pub fn get_reference_load_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoadObj>> {
+pub fn get_reference_load_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoad>> {
     let ld = openstaad.get_load()?;
     let load = Staad::Load(Arc::clone(&ld));
-    let mut list: Vec<PrimiryLoadObj> = Vec::new();
+    let mut list: Vec<PrimiryLoad> = Vec::new();
     let rload_val = execute_method(&load, "GetReferenceLoadCaseNumbers", &[])?;
     let rload_ids = rload_val[1].as_array().context("Context err: beam_list")?;
     for n in rload_ids {
@@ -620,19 +615,20 @@ pub fn get_reference_load_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryL
         let title_val = execute_method(&load, "GetReferenceLoadCaseTitle", &[rload_id.into()])?;
         let type_val = execute_method(&load, "GetReferenceLoadType", &[rload_id.into()])?;
 
-        list.push(PrimiryLoadObj {
+        list.push(PrimiryLoad {
             id: rload_id_val,
-            r#type: PrimaryLoadType::from_code(type_val).as_name(),
+            r#type: PrimiryLoadType::from_code(type_val).as_name(),
             title: title_val,
+            children: vec![],
         })
     }
     Ok(list)
 }
 
-pub fn get_load_case_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoadObj>> {
+pub fn get_load_case_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoad>> {
     let ld = openstaad.get_load()?;
     let load = Staad::Load(Arc::clone(&ld));
-    let mut list: Vec<PrimiryLoadObj> = Vec::new();
+    let mut list: Vec<PrimiryLoad> = Vec::new();
     let rload_val = execute_method(&load, "GetPrimaryLoadCaseNumbers", &[])?;
     let rload_ids = rload_val[1].as_array().context("Context err: beam_list")?;
     for n in rload_ids {
@@ -642,10 +638,11 @@ pub fn get_load_case_list(openstaad: &mut OpenStaad) -> Result<Vec<PrimiryLoadOb
         let title_val = execute_method(&load, "GetLoadCaseTitle", &[rload_id.into()])?;
         let type_val = execute_method(&load, "GetLoadType", &[rload_id.into()])?;
 
-        list.push(PrimiryLoadObj {
+        list.push(PrimiryLoad {
             id: rload_id_val,
-            r#type: PrimaryLoadType::from_code(type_val).as_name(),
+            r#type: PrimiryLoadType::from_code(type_val).as_name(),
             title: title_val,
+            children: vec![],
         })
     }
     Ok(list)
@@ -877,7 +874,11 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
             LoadItemType::FloorLoadGroup => {
                 tindex = idx.clone();
                 name = "GROUP FLOAD".to_string();
-                json!(FloorLoadGroup {})
+                json!(FloorLoadGroup {
+                    group: "_".to_string(),
+                    pressure: 0.,
+                    direction: 1,
+                })
             }
             LoadItemType::RepeatLoadData => {
                 tindex = cur_idx + 1;
@@ -906,6 +907,7 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                 })
             }
             LoadItemType::ReferenceLoadData => {
+                tindex = cur_idx + 1;
                 let count_val = execute_method(
                     &load,
                     "GetNoOfSetsInReferenceLoad",
@@ -951,7 +953,7 @@ pub fn get_load_item_list(openstaad: &mut OpenStaad, loadcase: Value) -> Result<
                         -1 => format!("R{}", ref_id.abs()),
                         _ => "id err".to_string(),
                     };
-                    let dir = Axis::from(dirs[i].clone());
+                    let dir = Axis::from_value(dirs[i].clone());
                     let fac = round_with_factor(&factors[i], 1., 3)?;
                     details.push(format!("{} {} {}", ref_name, dir.as_str(), fac));
                 }
@@ -1080,4 +1082,10 @@ pub fn get_design_results(openstaad: &mut OpenStaad) -> Result<Vec<(MemberSteelD
         }
     }
     Ok(list)
+}
+
+pub fn get_loadings(std_path: String) -> Result<Loading> {
+    let content = read_to_string(std_path)?;
+
+    parsing_std_loading(content)
 }
