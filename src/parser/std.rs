@@ -1,16 +1,46 @@
 use anyhow::{Result, anyhow};
 use log::{info, warn};
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::{
     bindings::{
-        Definitions, LoadItemObj, LoadItemType, Loading, PrimiryLoad, PrimiryLoadType,
-        WindDefinition,
+        Beam, Definitions, LoadItemObj, LoadItemType, Loading, Node, PrimiryLoad, PrimiryLoadType,
+        Section, WindDefinition,
     },
-    parser::{regex::*, section::*},
+    parser::section::*,
 };
+
+// STD separater
+static REGEX_CONNECT_ST: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*-\s*$").unwrap());
+static REGEX_UPPER_ST: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([A-Z\s]+)$").unwrap());
+static REGEX_COMMAND_ST: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(DEFINE|START|PERFORM)\b").unwrap());
+static REGEX_END_ST: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(END)\b").unwrap());
+static REGEX_JOB_ST: Lazy<Regex> = Lazy::new(|| Regex::new(r"^JOB REF (\S+)").unwrap());
+static REGEX_COORD_ST: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+    r"^\s*([-+]?\d+(?:\.\d+)?)\s+([-+]?\d+(?:\.\d+)?)\s+([-+]?\d+(?:\.\d+)?)\s+([-+]?\d+(?:\.\d+)?)\s*$",
+).unwrap()
+});
+static REGEX_MEMBER_ST: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^\s*([-+]?\d+(?:\.\d+)?)\s+([-+]?\d+(?:\.\d+)?)\s+([-+]?\d+(?:\.\d+)?)\s*$")
+        .unwrap()
+});
+static REGEX_GROUP_TYPE_ST: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^\s*(GEOMETRY|JOINT|MEMBER|ELEMENT|SOLID|FLOOR)\s*").unwrap());
+static REGEX_PRIMIRY_LOAD_ST: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+    r"^LOAD\s+(?P<key>\S+)(?:\s+(?:LOADTYPE\s+(?P<type>\S+))?(?:\s*TITLE\s+)?(?:(?P<title>.+)))?$",
+).unwrap()
+});
+static REGEX_MATERIAL_ITEM_ST: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(ISOTROPIC|2DORTHOTROPIC)\s+(.+)").unwrap());
+static REGEX_CONSTANT_ITEM_ST: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(BETA|MATERIAL)\s+(.+)").unwrap());
+static REGEX_WIND_LOAD_ST: Lazy<Regex> = Lazy::new(|| Regex::new(r"TYPE\s+(\d+)\s+(.+)").unwrap());
 
 const JOB: &str = "START JOB INFORMATION";
 const JOINT: &str = "JOINT COORDINATES";
@@ -26,9 +56,7 @@ const SUPPORT: &str = "SUPPORTS";
 const REFERENCELOAD: &str = "DEFINE REFERENCE LOADS";
 const WINDLOAD: &str = "DEFINE WIND LOAD";
 
-pub fn parsing_loadings(text: String) -> Result<Loading> {
-    // Parsing spec
-
+pub fn parsing_std(text: String) -> Result<Value> {
     let mut lines: Vec<String> = text.lines().map(|s| s.to_string()).collect();
 
     let mut def_map: HashMap<&str, bool> = vec![
@@ -50,20 +78,25 @@ pub fn parsing_loadings(text: String) -> Result<Loading> {
     .map(|e| (e, false))
     .collect();
 
+    let mut nodes: HashMap<usize, Node> = HashMap::new();
+    let mut beams: HashMap<usize, Beam> = HashMap::new();
+
     let mut group_type: Option<String> = None;
     let mut material_item_type: Option<String> = None;
-    let mut load_item_type: Option<String> = None;
     let mut material_entries: Vec<(String, String)> = Vec::new();
 
-    let mut reference_loads: Vec<PrimiryLoad> = vec![];
+    let mut specifications: HashMap<usize, Value> = HashMap::new();
+    let mut sections: HashMap<usize, Section> = HashMap::new();
+
+    let mut reference_loads: HashMap<usize, PrimiryLoad> = HashMap::new();
     let mut ref_load_index: usize = 0;
 
-    let mut load_case_details: Vec<PrimiryLoad> = vec![];
+    let mut load_case_details: HashMap<usize, PrimiryLoad> = HashMap::new();
     let mut load_case_index: usize = 0;
 
-    let mut load_item_index: usize = 0;
+    let mut load_item_type: Option<String> = None;
 
-    let mut wind_defs: Vec<WindDefinition> = vec![];
+    let mut wind_defs: HashMap<usize, WindDefinition> = HashMap::new();
     let mut wind_def_index: usize = 0;
 
     fn load_item_parser(load_item_type: &str, line: &str) -> Result<LoadItemObj> {
@@ -146,10 +179,11 @@ pub fn parsing_loadings(text: String) -> Result<Loading> {
                 if REGEX_COORD_ST.is_match(e) {
                     let parts: Vec<&str> = e.trim().split_whitespace().collect();
                     if parts.len() >= 4 {
-                        let key = parts[0];
+                        let id = parts[0].parse::<u32>()?;
                         let x: f64 = parts[1].parse().unwrap_or(0.0);
                         let y: f64 = parts[2].parse().unwrap_or(0.0);
                         let z: f64 = parts[3].parse().unwrap_or(0.0);
+                        nodes.insert(id as usize, Node { id, x, y, z });
                     }
                 }
             }
@@ -162,9 +196,17 @@ pub fn parsing_loadings(text: String) -> Result<Loading> {
                 if REGEX_MEMBER_ST.is_match(e) {
                     let parts: Vec<&str> = e.trim().split_whitespace().collect();
                     if parts.len() >= 3 {
-                        let key = parts[0];
-                        let i_key: i32 = parts[1].parse().unwrap_or(0);
-                        let j_key: i32 = parts[2].parse().unwrap_or(0);
+                        let id = parts[0].parse::<u32>()?;
+                        let i_key = parts[1].parse::<u32>()?;
+                        let j_key = parts[2].parse::<u32>()?;
+                        beams.insert(
+                            id as usize,
+                            Beam {
+                                id,
+                                i: i_key,
+                                j: j_key,
+                            },
+                        );
                     }
                 }
             }
@@ -172,17 +214,34 @@ pub fn parsing_loadings(text: String) -> Result<Loading> {
 
         // Member Release
         if *def_map.get(RELEASE).unwrap_or(&false) {
-            // let parsed = parse_member_release(&line);
+            let mut parsed = parse_member_release(&line);
+            if let Ok(ref mut release) = parsed {
+                let id = specifications.keys().len() + 1;
+                release.id = id as u32;
+                specifications.insert(id, json!(release));
+            }
         }
 
         // Member Truss
         if *def_map.get(TRUSS).unwrap_or(&false) {
-            // let parsed = parse_keys(&line);
+            let mut parsed = parse_member_truss(&line);
+            if let Ok(ref mut truss) = parsed {
+                if !line.contains(TRUSS) {
+                    let id = specifications.keys().len() + 1;
+                    truss.id = id as u32;
+                    specifications.insert(id, json!(truss));
+                }
+            }
         }
 
         // Member Property (Section)
         if *def_map.get(SECTION).unwrap_or(&false) || *def_map.get(USERSECTION).unwrap_or(&false) {
-            // let parsed = parse_section(&line);
+            let mut parsed = parse_section(&line);
+            if let Ok(ref mut _sec) = parsed {
+                let id = sections.keys().len() + 1;
+                _sec.id = id as u32;
+                sections.insert(id, _sec.clone());
+            }
         }
 
         // Material
@@ -227,10 +286,9 @@ pub fn parsing_loadings(text: String) -> Result<Loading> {
                     title: json!(title),
                     children: vec![],
                 };
-                reference_loads.push(ref_load);
-                ref_load_index = reference_loads.len() - 1;
+                reference_loads.insert(ref_load_index + 1, ref_load);
+                ref_load_index = reference_loads.len();
 
-                load_item_index = 0;
                 load_item_type = None;
             }
             if is_upper {
@@ -241,11 +299,13 @@ pub fn parsing_loadings(text: String) -> Result<Loading> {
             if let Some(ref li_type) = load_item_type {
                 let mut parsed = load_item_parser(&li_type, &line);
                 if let Ok(ref mut load_item) = parsed {
-                    load_item.id = json!(load_item_index);
-                    reference_loads[ref_load_index]
-                        .children
-                        .push(load_item.clone());
-                    load_item_index += 1;
+                    // load_item.id = json!(load_item_index);
+                    let parent_opt = reference_loads.get_mut(&ref_load_index);
+                    if let Some(parent) = parent_opt {
+                        let item_id = parent.children.len();
+                        load_item.id = json!(item_id);
+                        parent.children.push(load_item.clone());
+                    };
                 };
             };
             // Parse load based on load_item_type
@@ -263,10 +323,9 @@ pub fn parsing_loadings(text: String) -> Result<Loading> {
                     title: json!(title),
                     children: vec![],
                 };
-                load_case_details.push(load_case);
-                load_case_index = load_case_details.len() - 1;
+                load_case_details.insert(load_case_index + 1, load_case);
+                load_case_index = load_case_details.len();
 
-                load_item_index = 0;
                 load_item_type = None;
             }
             if is_upper {
@@ -277,11 +336,12 @@ pub fn parsing_loadings(text: String) -> Result<Loading> {
             if let Some(ref li_type) = load_item_type {
                 let mut parsed = load_item_parser(&li_type, &line);
                 if let Ok(ref mut load_item) = parsed {
-                    load_item.id = json!(load_item_index);
-                    load_case_details[load_case_index]
-                        .children
-                        .push(load_item.clone());
-                    load_item_index += 1;
+                    let parent_opt = load_case_details.get_mut(&load_case_index);
+                    if let Some(parent) = parent_opt {
+                        let item_id = parent.children.len();
+                        load_item.id = json!(item_id);
+                        parent.children.push(load_item.clone());
+                    };
                 };
             };
             // Parse load based on load_item_type
@@ -290,129 +350,43 @@ pub fn parsing_loadings(text: String) -> Result<Loading> {
             if let Some(_captures) = REGEX_WIND_LOAD_ST.captures(&line) {
                 let id = _captures[1].parse::<u64>()?;
                 let name = _captures[2].to_string();
-                wind_defs.push(WindDefinition {
-                    id,
-                    name,
-                    children: vec![],
-                });
-                wind_def_index = wind_defs.len() - 1;
+                wind_defs.insert(
+                    wind_def_index + 1,
+                    WindDefinition {
+                        id,
+                        name,
+                        children: vec![],
+                    },
+                );
+                wind_def_index = wind_defs.len();
             } else {
-                // if wind_def_index >= wind_defs.len() {
-                //     continue;
-                // }
                 let mut parsed = parse_wind_load(&line);
                 if let Ok(ref mut wind_item) = parsed {
-                    let item_id = wind_defs[wind_def_index].children.len();
-                    wind_item.id = json!(item_id);
-                    wind_defs[wind_def_index].children.push(wind_item.clone());
+                    let parent_opt = wind_defs.get_mut(&wind_def_index);
+                    if let Some(parent) = parent_opt {
+                        let item_id = parent.children.len();
+                        wind_item.id = json!(item_id);
+                        parent.children.push(wind_item.clone());
+                    };
                 }
             }
         }
     }
 
-    Ok(Loading {
+    let loadings = Loading {
         definitions: Definitions {
             reference_load: reference_loads,
             wind: wind_defs,
         },
         load_case_details,
-        load_envelopes: vec![],
-    })
-}
+        load_envelopes: HashMap::new(),
+    };
 
-pub fn parsing_specifications(text: String) -> Result<Vec<Value>> {
-    let mut lines: Vec<String> = text.lines().map(|s| s.to_string()).collect();
-
-    let mut def_map: HashMap<&str, bool> = vec![
-        JOB,
-        JOINT,
-        MEMBER,
-        GROUP,
-        RELEASE,
-        TRUSS,
-        USERSECTION,
-        SECTION,
-        CONSTANTS,
-        MATERIAL,
-        SUPPORT,
-        REFERENCELOAD,
-        WINDLOAD,
-    ]
-    .into_iter()
-    .map(|e| (e, false))
-    .collect();
-
-    let mut material_entries: Vec<(String, String)> = Vec::new();
-
-    let mut spec_index: usize = 0;
-    let mut specifications: Vec<Value> = vec![];
-    for (i, _) in text.lines().enumerate() {
-        let line = &lines[i];
-        if line.starts_with('*') {
-            continue;
+    Ok(json!({
+        "loadings":loadings,
+        "specifications":specifications,
+        "properties": {
+            "sections":sections
         }
-        // Handle line continuation
-        if REGEX_CONNECT_ST.is_match(&line) {
-            if i + 1 < lines.len() {
-                let continued =
-                    REGEX_CONNECT_ST.replace(&lines[i], " ").to_string() + &lines[i + 1];
-                lines[i + 1] = continued;
-                continue;
-            }
-        }
-
-        let is_upper = REGEX_UPPER_ST.is_match(&line);
-        let is_command = REGEX_COMMAND_ST.is_match(&line);
-        let is_end = REGEX_END_ST.is_match(&line);
-        let is_next = is_upper || is_command || is_end;
-
-        // Current work
-        if is_next {
-            let keys_to_update: Vec<&str> = def_map
-                .iter()
-                .filter(|(_, v)| **v)
-                .map(|(&k, _)| k)
-                .collect();
-
-            for k in keys_to_update {
-                if [REFERENCELOAD, WINDLOAD, GROUP, MATERIAL].contains(&k) {
-                    if REGEX_END_ST.is_match(&line) {
-                        if k == MATERIAL {
-                            let _mat: HashMap<String, String> =
-                                material_entries.iter().cloned().collect();
-                        }
-                        def_map.insert(k, false);
-                    }
-                } else {
-                    def_map.insert(k, false);
-                }
-            }
-            if let Some(&key) = def_map.keys().find(|&&k| line.contains(k)) {
-                def_map.insert(key, true);
-            }
-        }
-
-        // Member Release
-        if *def_map.get(RELEASE).unwrap_or(&false) {
-            let mut parsed = parse_member_release(&line);
-            if let Ok(ref mut release) = parsed {
-                specifications.push(json!(release));
-                spec_index = specifications.len()
-            }
-        }
-
-        // Member Truss
-        if *def_map.get(TRUSS).unwrap_or(&false) {
-            let mut parsed = parse_member_truss(&line);
-            if let Ok(ref mut truss) = parsed {
-                if !line.contains(TRUSS) {
-                    truss.id = (spec_index as u32) + 1;
-                    specifications.push(json!(truss));
-                    spec_index = specifications.len()
-                }
-            }
-        }
-    }
-
-    Ok(specifications)
+    }))
 }

@@ -1,3 +1,14 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Section {
+    pub id: u32,
+    pub source: String,
+    pub r#type: String,
+    pub name: String,
+    pub assigned: Vec<i32>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IsotropicMaterialType {
     Other = 0,

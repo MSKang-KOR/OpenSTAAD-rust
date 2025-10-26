@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -5,19 +7,19 @@ use serde_json::{Value, json};
 #[serde(rename_all = "camelCase")]
 pub struct Loading {
     pub definitions: Definitions,
-    pub load_case_details: Vec<PrimiryLoad>,
-    pub load_envelopes: Vec<PrimiryLoad>,
+    pub load_case_details: HashMap<usize, PrimiryLoad>,
+    pub load_envelopes: HashMap<usize, PrimiryLoad>,
 }
 
 impl Loading {
     pub fn default() -> Self {
         Self {
             definitions: Definitions {
-                reference_load: vec![],
-                wind: vec![],
+                reference_load: HashMap::new(),
+                wind: HashMap::new(),
             },
-            load_case_details: vec![],
-            load_envelopes: vec![],
+            load_case_details: HashMap::new(),
+            load_envelopes: HashMap::new(),
         }
     }
 }
@@ -25,8 +27,8 @@ impl Loading {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Definitions {
-    pub reference_load: Vec<PrimiryLoad>,
-    pub wind: Vec<WindDefinition>,
+    pub reference_load: HashMap<usize, PrimiryLoad>,
+    pub wind: HashMap<usize, WindDefinition>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

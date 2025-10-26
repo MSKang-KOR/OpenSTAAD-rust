@@ -4,14 +4,73 @@ use regex::Regex;
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
-use crate::{
-    bindings::{
-        Axis, ConcentratedForce, FloorLoadGroup, LoadItemAttribute, LoadItemObj, LoadItemType,
-        NodalLoad, NotionalLoadData, ReferenceLoadData, Release, RepeatLoadData, Temperature,
-        Truss, UniformForce,
-    },
-    parser::regex::*,
+use crate::bindings::{
+    Axis, ConcentratedForce, FloorLoadGroup, LoadItemAttribute, LoadItemObj, LoadItemType,
+    NodalLoad, NotionalLoadData, ReferenceLoadData, Release, RepeatLoadData, Section, Temperature,
+    Truss, UniformForce,
 };
+
+// IDs
+static REGEX_RANGE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*(\d+)\s+TO\s+(\d+)\s*").unwrap());
+
+// Member Release
+static REGEX_RELEASE_LOCATION: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\b(START|END|BOTH)\s*").unwrap());
+static REGEX_RELEASE_RESTRAINT: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\b(FX|FY|FZ|MX|MY|MZ)\s*").unwrap());
+static REGEX_RELEASE_SPRING: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\b(KFX|KFY|KFZ|KMX|KMY|KMZ)\s+([-+]?\d*\.?\d+)\s*").unwrap());
+static REGEX_RELEASE_PARTIAL_MOMENT: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\b(MP|MPX|MPY|MPZ)\s+([-+]?\d*\.?\d+)\s*").unwrap());
+
+// Propert::Section
+static REGEX_SECTION: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\s+(?<source>TABLE|UPTABLE)\s+(?<type>[^\s]+)\s+(?<name>[^\s]+)")
+        .expect("Invalid regex")
+});
+
+// LoadItem::Nodal Load
+static REGEX_INDIVIDUAL: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b(\d+)\b").unwrap());
+static REGEX_NODAL_LOAD_VALIDATION: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\s+(INCLINED|FX|FY|FZ|MX|MY|MZ)\s+").unwrap());
+static REGEX_NODAL_LOAD_INCLINED: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"INCLINED\s+(?:(?:(?<x>[-\d.]+)\s+(?<y>[-\d.]+)\s+(?<z>[-\d.]+))|(REF)\s+(?<xref>[-\d.]+)\s+(?<yref>[-\d.]+)\s+(?<zref>[-\d.]+)|(REFJT)\s+(?<joint>[-\d.]+))"
+    ).unwrap()
+});
+static REGEX_NODAL_LOAD_PAIR: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(FX|FY|FZ|MX|MY|MZ)\s+([-\d.]+)").unwrap());
+// Member Load
+static REGEX_MEMBER_LOAD_TYPE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(CON|UNI)\s+").unwrap());
+static REGEX_MEMBER_LOAD_VALUE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"([A-Z]+)\s+([-+]?\d*\.?\d+)(?:\s+([-+]?\d*\.?\d+)(?:\s+([-+]?\d*\.?\d+)(?:\s+([-+]?\d*\.?\d+))?)?)?"
+    ).unwrap()
+});
+// Floor Load
+static REGEX_FLOAD_VALIDATION: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+(FLOAD)\s+").unwrap());
+static REGEX_FLOAD_GROUP_NAME: Lazy<Regex> = Lazy::new(|| Regex::new(r"(_[^\s]+)\s+").unwrap());
+static REGEX_FLOAD_PRESSURE: Lazy<Regex> = Lazy::new(|| Regex::new(r"FLOAD\s+([-\d.]+)").unwrap());
+static REGEX_FLOAD_DIRECTION: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b(GX|GY|GZ)").unwrap());
+// Temperature LOAD
+static REGEX_TEMP_VARS: Lazy<Regex> = Lazy::new(|| {
+    {
+    Regex::new(
+        r"TEMP\s+([-+]?\d+(?:\.\d*)?)\s*(?:([-+]?\d+(?:\.\d*)?)\s*)?(?:([-+]?\d+(?:\.\d*)?)\s*)?$",
+    )
+}
+.unwrap()
+});
+// Repeat Load & Reference Load
+static REGEX_REF_LOAD_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(\S+)\s+([-+]?\d+(?:\.\d+)?)").unwrap());
+// Notional Load
+static REGEX_NOTIONAL_LOAD_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(\S+)\s+([XYZ])\s+([-+]?\d+(?:\.\d+)?)").unwrap());
+// Wind Load
+static REGEX_WIND_LOAD_ITEM_TYPE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b(INT)\s+").unwrap());
+static REGEX_WIND_LOAD_INTENSITY_TABLE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\s+([-+]?\d+(?:\.\d*)?)").unwrap());
 
 pub fn parse_keys(s: &str) -> Vec<i32> {
     let mut seen = HashSet::new();
@@ -144,6 +203,35 @@ pub fn parse_member_truss(s: &str) -> Result<Truss> {
     })
 }
 
+pub fn parse_section(str_input: &str) -> Result<Section> {
+    let caps = REGEX_SECTION
+        .captures(str_input)
+        .ok_or(anyhow!("Invalid SECTION: {}", str_input))?;
+
+    let assigned = parse_keys(str_input);
+    let source = caps
+        .name("source")
+        .map(|m| m.as_str().to_string())
+        .ok_or(anyhow!("Invalid SECTION source: {}", str_input))?;
+    let r#type = caps
+        .name("type")
+        .map(|m| m.as_str().to_string())
+        .ok_or(anyhow!("Invalid SECTION type: {}", str_input))?;
+    let name = caps
+        .name("name")
+        .map(|m| m.as_str().to_string())
+        .ok_or(anyhow!("Invalid SECTION name: {}", str_input))?;
+
+    // 5. 결과 반환
+    Ok(Section {
+        id: 0,
+        source,
+        name,
+        r#type,
+        assigned,
+    })
+}
+
 pub fn parse_nodal_load(s: &str) -> Result<LoadItemObj> {
     let validation_match = REGEX_NODAL_LOAD_VALIDATION.find(s);
 
@@ -185,7 +273,6 @@ pub fn parse_nodal_load(s: &str) -> Result<LoadItemObj> {
         None => bail!("Invalid JOINT LOAD: {}", s),
     }
 }
-
 pub fn parse_member_load(s: &str) -> Result<LoadItemObj> {
     let type_match = REGEX_MEMBER_LOAD_TYPE
         .find(s)
@@ -245,17 +332,21 @@ pub fn parse_member_load(s: &str) -> Result<LoadItemObj> {
         }
         _ => bail!("Invalid MEMBER LOAD attribute: {}", s),
     };
+    let r#type = match load_type {
+        "CON" => LoadItemType::ConcentratedForce.as_code(),
+        "UNI" => LoadItemType::UniformForce.as_code(),
+        _ => bail!("Invalid MEMBER LOAD type: {}", load_type),
+    };
 
     Ok(LoadItemObj {
         id: json!(0),
         index: json!(0),
-        r#type: LoadItemType::NodalLoad.as_code(),
+        r#type,
         name: json!(name),
         assigned,
         attribute,
     })
 }
-
 pub fn parse_floor_load(s: &str) -> Result<LoadItemObj> {
     let validation_match = REGEX_FLOAD_VALIDATION.find(s);
     if validation_match.is_none() {
@@ -293,7 +384,6 @@ pub fn parse_floor_load(s: &str) -> Result<LoadItemObj> {
         }),
     })
 }
-
 pub fn parse_temp_load(s: &str) -> Result<LoadItemObj> {
     if let Some(captures) = REGEX_TEMP_VARS.captures(s) {
         let axial_elongation = captures
@@ -332,7 +422,6 @@ pub fn parse_temp_load(s: &str) -> Result<LoadItemObj> {
         bail!("Not TEMPERATURE LOAD: {}", s);
     }
 }
-
 pub fn parse_repeat_load(s: &str) -> Result<LoadItemObj> {
     let mut repeat_load = RepeatLoadData {
         cases: vec![],
@@ -425,7 +514,6 @@ pub fn parse_notional_load(s: &str) -> Result<LoadItemObj> {
         attribute: json!(not_load),
     })
 }
-
 pub fn parse_wind_load(s: &str) -> Result<LoadItemObj> {
     let type_cap = REGEX_WIND_LOAD_ITEM_TYPE.captures(s);
 

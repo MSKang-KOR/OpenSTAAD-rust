@@ -10,7 +10,7 @@ use openstaad_rust::{
     bindings::Staad,
     openstaad::app::OpenStaad,
     parser::{
-        parsing_loadings, parsing_specifications,
+        parsing_std,
         section::{parse_keys, parse_nodal_load},
     },
     tools::{custom::get_beam_table, execute_method},
@@ -39,14 +39,9 @@ fn main() -> Result<()> {
     // let root = Staad::Root(_root);
     // let _ = execute_method(&root, "OpenSTAADFile", &[std_path.to_string().into()]);
 
-    let _str = "20 25 28 31 34 37 40 43 FY -2.16";
-    let _keys = parse_nodal_load(_str);
-
     let content = read_to_string(std_path)?;
-
-    // let loading = parsing_loading(content.clone())?;
-    let specs = parsing_specifications(content.clone())?;
-    // info!("{:#?}", loading);
+    let staad = parsing_std(content.clone())?;
+    info!("{:#?}", staad);
     Ok(())
 }
 

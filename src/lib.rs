@@ -7,6 +7,7 @@ pub use anyhow::{Context, Error, Result, anyhow, bail};
 pub use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::read_to_string;
+use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::thread::{self, JoinHandle};
 use tauri::AppHandle;
@@ -17,156 +18,15 @@ use serde_json::{Value, json};
 
 use crate::bindings::Staad;
 use crate::openstaad::app::{self, OpenStaad};
-use crate::parser::{parsing_loadings, parsing_specifications};
+use crate::parser::{parsing_std};
 use crate::tools::{InType, Input, custom::*, execute_method, invoke_method};
 
-type StorageType = Arc<Mutex<HashMap<u32, OpenStaad>>>;
-pub static STAAD_MANAGER: LazyLock<Mutex<Option<StorageType>>> = LazyLock::new(|| Mutex::new(None));
-
-// Manager 시작
-pub fn start_manager() -> Result<Value, String> {
-    let mut manager = STAAD_MANAGER.lock().unwrap();
-    if manager.is_some() {
-        return Ok(json!("Manager already started"));
-    }
-    *manager = Some(Arc::new(Mutex::new(HashMap::<u32, OpenStaad>::new())));
-
-    Ok(json!("Manager started successfully"))
-}
-
-// 특정 Worker에 메시지 전송
-pub fn send(msg_type: String, data: Value, app_handle: AppHandle) -> Result<Value, String> {
-    match msg_type.as_str() {
-        "Open" => {
-            let params = data["params"]
-                .as_array()
-                .ok_or("Missing params parameter")?
-                .clone();
-            let path = params[0]
-                .as_str()
-                .ok_or("Missing path parameter")?
-                .to_string();
-            let std_path = params[1]
-                .as_str()
-                .ok_or("Missing std_path parameter")?
-                .to_string();
-            let openstaad = handle_open(path.clone(), std_path.clone())?;
-            let staad_id = openstaad.id;
-            {
-                let manager_guard = STAAD_MANAGER.lock().map_err(|e| e.to_string())?;
-                if manager_guard.is_none() {
-                    return Err("STAAD_STORAGE is not started".to_string());
-                }
-
-                let manager_arc = manager_guard
-                    .as_ref()
-                    .ok_or("STAAD_STORAGE is not started")?;
-                let mut hashmap = manager_arc.lock().map_err(|e| e.to_string())?;
-                hashmap.insert(staad_id, openstaad);
-            }
-            Ok(json!(staad_id))
-        }
-        "Connect" => {
-            let params = data["params"]
-                .as_array()
-                .ok_or("Missing params parameter")?
-                .clone();
-            let pid = params[0].as_u64().ok_or("Missing pid parameter")? as u32;
-
-            {
-                let manager_guard = STAAD_MANAGER.lock().map_err(|e| e.to_string())?;
-                if manager_guard.is_none() {
-                    return Err("STAAD_STORAGE is not started".to_string());
-                }
-
-                let manager_arc = manager_guard
-                    .as_ref()
-                    .ok_or("STAAD_STORAGE is not started")?;
-                let mut hashmap = manager_arc.lock().map_err(|e| e.to_string())?;
-                let searched = hashmap.get(&pid);
-                if let None = searched {
-                    let openstaad = handle_connect(pid)?;
-                    hashmap.insert(pid, openstaad);
-                }
-            }
-            Ok(json!(pid))
-        }
-        "Execute" => {
-            let id = data["id"].as_u64().ok_or("Missing method id")? as u32;
-            let method = data["method"]
-                .as_str()
-                .ok_or("Missing method parameter")?
-                .to_string();
-            let params = data["params"]
-                .as_array()
-                .ok_or("Missing params parameter")?
-                .clone();
-
-            let manager_guard = STAAD_MANAGER.lock().map_err(|e| e.to_string())?;
-            if manager_guard.is_none() {
-                return Err("STAAD_STORAGE is not started".to_string());
-            }
-            let manager_arc = manager_guard
-                .as_ref()
-                .ok_or("STAAD_STORAGE is not started")?;
-            let mut hashmap_guard = manager_arc.lock().map_err(|e| e.to_string())?;
-            if let Some(staad) = hashmap_guard.get_mut(&id) {
-                return handle_method(staad, method, params);
-            }
-            Err(format!("No Staad instance opened in this worker: {}", id))
-        }
-        "ExecuteBatch" => {
-            let id = data["id"].as_u64().ok_or("Missing method id")? as u32;
-            let method = data["method"]
-                .as_str()
-                .ok_or("Missing method parameter")?
-                .to_string();
-            let params = data["params"]
-                .as_array()
-                .ok_or("Missing params parameter")?
-                .clone();
-
-            let manager_guard = STAAD_MANAGER.lock().map_err(|e| e.to_string())?;
-            if manager_guard.is_none() {
-                return Err("STAAD_STORAGE is not started".to_string());
-            }
-            let manager_arc = manager_guard
-                .as_ref()
-                .ok_or("STAAD_STORAGE is not started")?;
-            let mut hashmap_guard = manager_arc.lock().map_err(|e| e.to_string())?;
-            if let Some(staad) = hashmap_guard.get_mut(&id) {
-                println!("{:#?}: {:#?}", &id, &staad);
-                return handle_custom_method(staad, method, params, app_handle);
-            }
-            Err(format!("No Staad instance opened in this worker: {}", id))
-        }
-        "Quit" => {
-            let manager_guard = STAAD_MANAGER.lock().map_err(|e| e.to_string())?;
-            if manager_guard.is_none() {
-                return Err("STAAD_STORAGE is not started".to_string());
-            }
-            let manager_arc = manager_guard
-                .as_ref()
-                .ok_or("STAAD_STORAGE is not started")?;
-            let mut hashmap = manager_arc.lock().map_err(|e| e.to_string())?;
-            // HashMap의 모든 값에 대해 Quit 메소드 실행
-            for (_id, openstaad) in hashmap.iter_mut() {
-                let method = "Quit";
-                let instance = Staad::from_method(openstaad, method)
-                    .map_err(|e| format!("Staad instance error: {}", e))?;
-                execute_method(&instance, method, &[])
-                    .map_err(|e| format!("Execute method error: {}", e))?;
-            }
-            hashmap.clear();
-            Ok(json!("Quit successfully".to_string()))
-        }
-        _ => Err(format!("Invalid message type: {}", msg_type)),
-    }
-}
-
-pub fn handle_open(path: String, std_path: String) -> Result<OpenStaad, String> {
-    let mut openstaad =
-        OpenStaad::new(path.clone(), std_path.clone()).map_err(|e| e.to_string())?;
+pub fn handle_open(
+    system_path: PathBuf,
+    path: PathBuf,
+    file_name: String,
+) -> Result<OpenStaad, String> {
+    let mut openstaad = OpenStaad::new(system_path, path, file_name).map_err(|e| e.to_string())?;
     let root = openstaad.get_root().map_err(|e| e.to_string())?;
 
     // Silent mode 설정
@@ -193,12 +53,36 @@ pub fn handle_method(
     staad: &mut OpenStaad,
     method: String,
     params: Vec<Value>,
+    handle: AppHandle,
 ) -> Result<Value, String> {
     let instance = Staad::from_method(staad, method.as_str()).map_err(|e| e.to_string())?;
     let converted_params =
         convert_to_inputs(&instance, method.as_str(), &params).map_err(|e| e.to_string())?;
-    return execute_method(&instance, method.as_str(), converted_params.as_slice())
+    let result = execute_method(&instance, method.as_str(), converted_params.as_slice())
         .map_err(|e| e.to_string());
+    if let Ok(_) = result {
+        match method.as_str() {
+            "OpenSTAADFile" => {
+                let file_name = params[0]
+                    .as_str()
+                    .ok_or("OpenSTAADFile: Missing file_name parameter")?
+                    .to_string();
+                staad.file_name = Some(file_name);
+            }
+            "CloseSTAADFile" => {
+                staad.file_name = None;
+                staad.command = None;
+                staad.design = None;
+                staad.geometry = None;
+                staad.load = None;
+                staad.output = None;
+                staad.property = None;
+                staad.support = None;
+            }
+            _ => {}
+        }
+    }
+    return result;
 }
 
 pub fn handle_custom_method(
@@ -264,24 +148,41 @@ pub fn handle_custom_method(
             let v = get_design_results(openstaad).map_err(|e| e.to_string())?;
             serde_json::to_value(v).map_err(|e| e.to_string())
         }
-        "parsing_loadings" => {
+        "open_staad_file" => {
+            let v = open_staad_file(openstaad, params[0].clone()).map_err(|e| e.to_string())?;
+            serde_json::to_value(v).map_err(|e| e.to_string())
+        }
+        "close_staad_file" => {
+            let v = close_staad_file(openstaad).map_err(|e| e.to_string())?;
+            serde_json::to_value(v).map_err(|e| e.to_string())
+        }
+        "parsing_std" => {
             let std_path = params[0]
                 .as_str()
                 .ok_or("Missing std_path parameter")?
                 .to_string();
             let content = read_to_string(std_path).map_err(|e| e.to_string())?;
-            let v = parsing_loadings(content).map_err(|e| e.to_string())?;
-            serde_json::to_value(v).map_err(|e| e.to_string())
+            parsing_std(content).map_err(|e| e.to_string())
+            // serde_json::to_value(v).map_err(|e| e.to_string())
         }
-        "parsing_specifications" => {
-            let std_path = params[0]
-                .as_str()
-                .ok_or("Missing std_path parameter")?
-                .to_string();
-            let content = read_to_string(std_path).map_err(|e| e.to_string())?;
-            let v = parsing_specifications(content).map_err(|e| e.to_string())?;
-            serde_json::to_value(v).map_err(|e| e.to_string())
-        }
+        // "parsing_loadings" => {
+        //     let std_path = params[0]
+        //         .as_str()
+        //         .ok_or("Missing std_path parameter")?
+        //         .to_string();
+        //     let content = read_to_string(std_path).map_err(|e| e.to_string())?;
+        //     let v = parsing_loadings(content).map_err(|e| e.to_string())?;
+        //     serde_json::to_value(v).map_err(|e| e.to_string())
+        // }
+        // "parsing_specifications" => {
+        //     let std_path = params[0]
+        //         .as_str()
+        //         .ok_or("Missing std_path parameter")?
+        //         .to_string();
+        //     let content = read_to_string(std_path).map_err(|e| e.to_string())?;
+        //     let v = parsing_specifications(content).map_err(|e| e.to_string())?;
+        //     serde_json::to_value(v).map_err(|e| e.to_string())
+        // }
         _ => return Err(format!("Invalid custom method name: {}", method)),
     }
 }

@@ -16,7 +16,7 @@ use windows::{
     Win32::System::{Com::IDispatch, Variant::VARIANT},
     core::{GUID, HSTRING, PCWSTR, PWSTR},
 };
-use windows_core::{BOOL, IUnknown, Interface};
+use windows_core::{BOOL, BSTR, IUnknown, Interface};
 
 use crate::openstaad::command::Command;
 use crate::openstaad::design::Design;
@@ -26,15 +26,16 @@ use crate::openstaad::output::Output;
 use crate::openstaad::property::Property;
 use crate::openstaad::root::Root;
 use crate::openstaad::support::Support;
-use crate::tools::ComContext;
 use crate::tools::invoke::{invoke_method, invoke_property};
+use crate::tools::{ComContext, variant_with_ptr_from, variant_with_ptr_to};
+use std::path::{Path, PathBuf};
 use std::{ffi::OsStr, mem, os::windows::ffi::OsStrExt, sync::Arc, thread, time::Duration};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct OpenStaad {
-    #[serde(skip)]
     pub id: u32,
-    #[serde(skip)]
+    pub path: PathBuf,
+    pub file_name: Option<String>,
     pub root: Option<Arc<Root>>,
     pub command: Option<Arc<Command>>,
     pub design: Option<Arc<Design>>,
@@ -49,40 +50,23 @@ pub struct OpenStaad {
 
 impl OpenStaad {
     /// Connects to OpenSTAAD and initializes the application.
-    pub fn new(system_path: String, std_path: String) -> Result<Self> {
+    pub fn new(system_path: PathBuf, path: PathBuf, file_name: String) -> Result<Self> {
         let com_context = Arc::new(ComContext::new()?);
-        let (id, dispatch) = initialize(system_path, std_path)?;
-        let instance = Self {
-            id,
-            root: Some(Arc::new(Root::new(dispatch))),
-            command: None,
-            design: None,
-            geometry: None,
-            load: None,
-            output: None,
-            property: None,
-            support: None,
-            _com_context: Some(com_context),
-        };
-        Ok(instance)
-    }
-    pub fn new_by_activated() -> Result<Self> {
-        let com_context = Arc::new(ComContext::new()?);
-        let dispatch = get_active_object()?;
-        let id = unsafe {
-            match invoke_method(&dispatch, "GetProcessId", &mut []) {
-                Ok(_var) => VariantToInt32(&_var as *const VARIANT)? as u32,
-                Err(e) => {
-                    bail!(
-                        "[OpenStaad::get_active_staad] Failed to get process ID: {}",
-                        e
-                    );
-                }
-            }
-        };
+        let system_path_str = system_path
+            .to_str()
+            .ok_or(anyhow!("system_path is invalid: {:#?}", path))?
+            .to_string();
+        let std_path = path
+            .join(file_name.clone())
+            .to_str()
+            .ok_or(anyhow!("system_path is invalid: {:#?}", path))?
+            .to_string();
 
+        let (id, dispatch) = initialize(system_path_str, std_path)?;
         let instance = Self {
             id,
+            path,
+            file_name: Some(file_name),
             root: Some(Arc::new(Root::new(dispatch))),
             command: None,
             design: None,
@@ -95,12 +79,63 @@ impl OpenStaad {
         };
         Ok(instance)
     }
+    // pub fn new_by_activated() -> Result<Self> {
+    //     let com_context = Arc::new(ComContext::new()?);
+    //     let dispatch = get_active_object()?;
+    //     let id_var = unsafe { invoke_method(&dispatch, "GetProcessId", &mut [])? };
+    //     let id = unsafe { VariantToInt32(&id_var as *const VARIANT)? as u32 };
+
+    //     let instance = Self {
+    //         id,
+    //         root: Some(Arc::new(Root::new(dispatch))),
+    //         command: None,
+    //         design: None,
+    //         geometry: None,
+    //         load: None,
+    //         output: None,
+    //         property: None,
+    //         support: None,
+    //         _com_context: Some(com_context),
+    //     };
+    //     Ok(instance)
+    // }
 
     pub fn new_by_pid(pid: u32) -> Result<Self> {
         let com_context = ComContext::new()?;
         let dispatch = get_object_by_pid(pid)?;
+
+        let mut mut_bstr = Box::new(BSTR::default());
+        let bstr_ptr = mut_bstr.as_mut() as *mut BSTR;
+        let bstr_var = variant_with_ptr_from::<BSTR>(bstr_ptr);
+        let mut variants = vec![bstr_var, VARIANT::from(true)];
+        let params: &mut [VARIANT] = &mut variants[..];
+        let _ = unsafe { invoke_method(&dispatch, "GetSTAADFile", params)? };
+        let full_path = variant_with_ptr_to::<BSTR>(&mut params[0]);
+        let full_pathbuf = PathBuf::from(full_path);
+        let path = full_pathbuf
+            .parent()
+            .ok_or(anyhow!(
+                "Fail to full_pathbuf to parent: {:#?}",
+                full_pathbuf
+            ))?
+            .to_path_buf();
+        let file_name = full_pathbuf
+            .file_name()
+            .ok_or(anyhow!(
+                "Fail to full_pathbuf to file_name: {:#?}",
+                full_pathbuf
+            ))?
+            .to_str()
+            .ok_or(anyhow!(
+                "Fail to full_pathbuf str to file_name: {:#?}",
+                full_pathbuf
+            ))?
+            .to_string();
+
         let instance = Self {
             id: pid,
+            path,
+            file_name: Some(file_name),
             root: Some(Arc::new(Root::new(dispatch))),
             command: None,
             design: None,

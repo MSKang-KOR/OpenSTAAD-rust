@@ -1,7 +1,6 @@
 use crate::{
     bindings::*,
     openstaad::app::OpenStaad,
-    parser::parsing_loadings,
     tools::{
         SafeArrayP, execute_method, invoke_method,
         notify::watch_file_background,
@@ -13,7 +12,13 @@ use crate::{
 use anyhow::{Context, Result, anyhow, bail};
 use log::warn;
 use serde_json::{Value, json};
-use std::{collections::HashMap, fs::read_to_string, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+    thread,
+    time::Duration,
+};
 use tauri::{AppHandle, Emitter};
 use windows::Win32::System::{
     Com::{IDispatch, SAFEARRAY},
@@ -1026,7 +1031,7 @@ pub fn analyze(openstaad: &mut OpenStaad, handle: AppHandle) -> Result<Value> {
     Ok(json!(""))
 }
 
-pub fn get_design_results(openstaad: &mut OpenStaad) -> Result<Vec<(MemberSteelDesignResult)>> {
+pub fn get_design_results(openstaad: &mut OpenStaad) -> Result<Vec<MemberSteelDesignResult>> {
     let root = openstaad.get_root()?;
     let geo = openstaad.get_geometry()?;
     let geometry = Staad::Geometry(Arc::clone(&geo));
@@ -1089,4 +1094,63 @@ pub fn get_design_results(openstaad: &mut OpenStaad) -> Result<Vec<(MemberSteelD
         }
     }
     Ok(list)
+}
+
+pub fn open_staad_file(openstaad: &mut OpenStaad, file_name_val: Value) -> Result<String> {
+    let _root = openstaad.get_root()?;
+    let root = Staad::Root(_root);
+    // let file_path_string = file_path_val.to_string();
+    // let file_pathbuf = PathBuf::from(file_path_string);
+    // let file_path = file_pathbuf
+    //     .to_str()
+    //     .ok_or(anyhow!("open_staad_file: Fail file_pathbuf to string"))?
+    //     .to_string();
+    let file_name_string = file_name_val
+        .as_str()
+        .ok_or(anyhow!("Fail file_path_val to str"))?
+        .to_string();
+    let path = openstaad
+        .path
+        .clone()
+        .join(file_name_string.clone())
+        .to_str()
+        .ok_or(anyhow!("open_staad_file: Fail path to str"))?
+        .to_string();
+    let _ = execute_method(&root, "OpenSTAADFile", &[path.into()])?;
+    let mut attempts = 0;
+    let max_attempts = 20;
+    loop {
+        attempts += 1;
+        let file_name = execute_method(&root, "GetSTAADFile", &[false.into()])?;
+        if file_name == file_name_val {
+            openstaad.file_name = Some(file_name_string.clone());
+            return Ok(file_name_string);
+        } else {
+            if attempts > max_attempts {
+                bail!("오픈 실패")
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+    }
+}
+pub fn close_staad_file(openstaad: &mut OpenStaad) -> Result<bool> {
+    let _root = openstaad.get_root()?;
+    let root = Staad::Root(_root);
+    let _ = execute_method(&root, "CloseSTAADFile", &[])?;
+    // println!("isEmptyFile: {:#?}", file_name == json!(""));
+    let mut attempts = 0;
+    let max_attempts = 10;
+    loop {
+        attempts += 1;
+        let file_name = execute_method(&root, "GetSTAADFile", &[false.into()])?;
+        if file_name == json!("") {
+            openstaad.file_name = None;
+            return Ok(true);
+        } else {
+            if attempts > max_attempts {
+                bail!("종료 실패")
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+    }
 }
