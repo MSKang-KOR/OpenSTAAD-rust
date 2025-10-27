@@ -2328,6 +2328,7 @@ dependencies = [
  "uuid",
  "windows",
  "windows-core",
+ "winreg",
 ]
 
 [[package]]

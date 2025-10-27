@@ -16,7 +16,15 @@ use openstaad_rust::{
     tools::{custom::get_beam_table, execute_method},
 };
 use regex::Regex;
-use std::fs::{self, OpenOptions, read_to_string};
+use std::{
+    fs::{self, OpenOptions, read_to_string},
+    path::PathBuf,
+};
+use std::{io, path::Path};
+use winreg::{
+    RegKey,
+    enums::{HKEY_LOCAL_MACHINE, KEY_READ},
+};
 
 fn main() -> Result<()> {
     // Initialize file logging with timestamp
@@ -42,6 +50,7 @@ fn main() -> Result<()> {
     let content = read_to_string(std_path)?;
     let staad = parsing_std(content.clone())?;
     info!("{:#?}", staad);
+
     Ok(())
 }
 

@@ -27,7 +27,7 @@ use crate::openstaad::property::Property;
 use crate::openstaad::root::Root;
 use crate::openstaad::support::Support;
 use crate::tools::invoke::{invoke_method, invoke_property};
-use crate::tools::{ComContext, variant_with_ptr_from, variant_with_ptr_to};
+use crate::tools::{ComContext, get_staad_exe_path, variant_with_ptr_from, variant_with_ptr_to};
 use std::path::{Path, PathBuf};
 use std::{ffi::OsStr, mem, os::windows::ffi::OsStrExt, sync::Arc, thread, time::Duration};
 
@@ -50,16 +50,17 @@ pub struct OpenStaad {
 
 impl OpenStaad {
     /// Connects to OpenSTAAD and initializes the application.
-    pub fn new(system_path: PathBuf, path: PathBuf, file_name: String) -> Result<Self> {
+    pub fn new(path: PathBuf, file_name: String) -> Result<Self> {
         let com_context = Arc::new(ComContext::new()?);
-        let system_path_str = system_path
+        let system_path_str = get_staad_exe_path()?
             .to_str()
-            .ok_or(anyhow!("system_path is invalid: {:#?}", path))?
+            .ok_or(anyhow!("system_path_str is invalid: {:#?}", path))?
             .to_string();
+
         let std_path = path
             .join(file_name.clone())
             .to_str()
-            .ok_or(anyhow!("system_path is invalid: {:#?}", path))?
+            .ok_or(anyhow!("std_path is invalid: {:#?}", path))?
             .to_string();
 
         let (id, dispatch) = initialize(system_path_str, std_path)?;

@@ -5,28 +5,20 @@ pub mod tools;
 
 pub use anyhow::{Context, Error, Result, anyhow, bail};
 pub use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::path::PathBuf;
-use std::sync::{Arc, LazyLock, Mutex};
-use std::thread::{self, JoinHandle};
 use tauri::AppHandle;
-// use tokio::sync::{Mutex, mpsc, oneshot};
 use windows::Win32::System::Variant::VARIANT;
 
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::bindings::Staad;
 use crate::openstaad::app::{self, OpenStaad};
-use crate::parser::{parsing_std};
+use crate::parser::parsing_std;
 use crate::tools::{InType, Input, custom::*, execute_method, invoke_method};
 
-pub fn handle_open(
-    system_path: PathBuf,
-    path: PathBuf,
-    file_name: String,
-) -> Result<OpenStaad, String> {
-    let mut openstaad = OpenStaad::new(system_path, path, file_name).map_err(|e| e.to_string())?;
+pub fn handle_open(path: PathBuf, file_name: String) -> Result<OpenStaad, String> {
+    let mut openstaad = OpenStaad::new(path, file_name).map_err(|e| e.to_string())?;
     let root = openstaad.get_root().map_err(|e| e.to_string())?;
 
     // Silent mode 설정
