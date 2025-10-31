@@ -155,26 +155,8 @@ pub fn handle_custom_method(
                 .to_string();
             let content = read_to_string(std_path).map_err(|e| e.to_string())?;
             parsing_std(content).map_err(|e| e.to_string())
-            // serde_json::to_value(v).map_err(|e| e.to_string())
         }
-        // "parsing_loadings" => {
-        //     let std_path = params[0]
-        //         .as_str()
-        //         .ok_or("Missing std_path parameter")?
-        //         .to_string();
-        //     let content = read_to_string(std_path).map_err(|e| e.to_string())?;
-        //     let v = parsing_loadings(content).map_err(|e| e.to_string())?;
-        //     serde_json::to_value(v).map_err(|e| e.to_string())
-        // }
-        // "parsing_specifications" => {
-        //     let std_path = params[0]
-        //         .as_str()
-        //         .ok_or("Missing std_path parameter")?
-        //         .to_string();
-        //     let content = read_to_string(std_path).map_err(|e| e.to_string())?;
-        //     let v = parsing_specifications(content).map_err(|e| e.to_string())?;
-        //     serde_json::to_value(v).map_err(|e| e.to_string())
-        // }
+
         _ => return Err(format!("Invalid custom method name: {}", method)),
     }
 }

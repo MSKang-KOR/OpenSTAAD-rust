@@ -5,12 +5,16 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use anyhow::{Result as ResultAny, anyhow};
 use notify::event::RenameMode;
 use notify::recommended_watcher;
 use notify::{Event, EventKind, RecursiveMode, Result, Watcher, event::ModifyKind};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Runtime};
+
+use crate::bindings::CaseInfo;
+use crate::parser::section::counting_section_property_from_std;
 
 /// 백그라운드에서 파일 감시를 시작하는 함수
 /// JoinHandle을 반환하여 필요시 스레드를 제어할 수 있음
@@ -195,9 +199,14 @@ fn emit_progress(old_content: &str, new_content: &str, app: &AppHandle) -> bool 
 
 // 프론트엔드로 보낼 이벤트 데이터 구조체
 #[derive(Clone, Serialize)]
-struct FileNamesPayload {
+struct BaseFilePayload {
     // kind: String,
     data: Vec<String>,
+}
+#[derive(Clone, Serialize)]
+struct CaseFilePayload {
+    // kind: String,
+    data: Vec<CaseInfo>,
 }
 
 // 파일 검사 및 필터링 로직을 담은 헬퍼 함수
@@ -217,12 +226,11 @@ pub fn get_base_std_files(dir_path: &Path) -> Result<Vec<String>> {
                     .and_then(|ext| ext.to_str())
                     .map_or(false, |ext| ext.eq_ignore_ascii_case("STD"));
 
-                // 2. 파일명에 "_"이 포함되지 않았는지 확인
-                let no_underscore = !file_name.contains('_');
-                let no_cloned = !file_name.contains("복사본");
-                let no_init = !file_name.contains("INIT");
+                let is_relevant = ["_", "복사본", "INIT"]
+                    .iter()
+                    .all(|&exc| !file_name.contains(exc));
 
-                if is_std && no_underscore && no_cloned && no_init {
+                if is_std && is_relevant {
                     // 조건 만족 시, 파일의 이름(String)을 목록에 추가
                     // 필요하다면 path.display().to_string() 등으로 전체 경로를 보낼 수도 있습니다.
                     filtered_files.push(file_name.to_string());
@@ -234,15 +242,99 @@ pub fn get_base_std_files(dir_path: &Path) -> Result<Vec<String>> {
     Ok(filtered_files)
 }
 
-pub fn start_file_watcher<R: Runtime>(
+pub fn get_case_std_files(dir_path: &Path, case_name: String) -> ResultAny<Vec<CaseInfo>> {
+    let base_name = case_name.strip_suffix("_Case").unwrap_or(&case_name);
+    let llm_file_name = format!("{}_llm.txt", base_name);
+    let llm_file_path = dir_path.join(&llm_file_name);
+
+    let mut cases: Vec<CaseInfo> = vec![];
+    if let Ok(llm) = fs::read_to_string(&llm_file_path) {
+        let first_line = llm
+            .lines()
+            .next()
+            .map_or_else(|| "".to_string(), |s| s.to_string());
+        let _ = first_line
+            .split_whitespace()
+            .enumerate()
+            .filter(|(_, s)| !s.is_empty())
+            .for_each(|(i, s)| {
+                let weight = match s.parse::<f64>() {
+                    Ok(w) => w,
+                    Err(e) => -1.,
+                };
+                cases.push(CaseInfo {
+                    name: format!("{}{}", case_name, i + 1),
+                    weight,
+                    section_count: 0,
+                    is_file: false,
+                });
+            });
+    }
+
+    let mut filtered_files = Vec::new();
+    for entry in std::fs::read_dir(dir_path)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_file() {
+            if let Some(cur_file_name) = path.file_name().and_then(|s| s.to_str()) {
+                let is_std = path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .map_or(false, |ext| ext.eq_ignore_ascii_case("STD"));
+
+                let is_relevant = cur_file_name.contains(&case_name)
+                    && ["복사본"].iter().all(|&exc| !cur_file_name.contains(exc));
+
+                if is_std && is_relevant {
+                    filtered_files.push(cur_file_name.to_string());
+                }
+            }
+        }
+    }
+    for info in cases.iter_mut() {
+        let expected_file_name = format!("{}.STD", info.name);
+        if filtered_files.contains(&expected_file_name) {
+            info.is_file = true;
+            let full_file_path = dir_path.join(&expected_file_name);
+            if let Ok(count) = counting_section_property_from_std(&full_file_path) {
+                info.section_count = count;
+            }
+        }
+    }
+    Ok(cases)
+}
+
+pub fn start_base_std_watcher<R: Runtime>(
     app_handle: AppHandle<R>,
     path: PathBuf,
     mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<tauri::async_runtime::JoinHandle<()>> {
+    if let Ok(entries) = fs::read_dir(&path) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if path.is_file() {
+                let is_auto_recovery_zip = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map_or(false, |name_str| name_str.contains("_AutoRecovery"))
+                    && path
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .map_or(false, |ext| ext.eq_ignore_ascii_case("ZIP"));
+
+                if is_auto_recovery_zip {
+                    match fs::remove_file(&path) {
+                        Ok(_) => println!("✅ 초기 파일 삭제 성공: {:?}", path),
+                        Err(e) => eprintln!("❌ 초기 파일 삭제 오류 {:?}: {:?}", path, e),
+                    }
+                }
+            }
+        }
+    }
     // 💡 tokio::sync::mpsc에서 온 mpsc::channel을 사용합니다.
     let (tx, mut rx) = tokio::sync::mpsc::channel::<Event>(100);
     let dir_to_watch = path.clone();
-
     // Watcher 설정
     let mut watcher = recommended_watcher(move |res: notify::Result<Event>| {
         if let Ok(event) = res {
@@ -270,18 +362,17 @@ pub fn start_file_watcher<R: Runtime>(
                     if let Some(event) = event {
                         let mut should_rescan = false;
                         let is_relevant_kind = matches!(event.kind, EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(RenameMode::To)));
-                        println!("{:#?}: {:#?}", event.kind, event.paths);
                         if is_relevant_kind {
                             should_rescan = event.paths.iter().any(|p| {
                                 // 파일 확장자가 .stt 또는 .std 인지 확인
-                                let is_target_ext = p.extension()
+                                let is_std = p.extension()
                                  .and_then(|ext| ext.to_str())
                                  .map_or(false, |ext| {
                                      ext.eq_ignore_ascii_case("STD")
                                  });
 
                                 // 확장자가 맞다면, 파일명에 "__"가 포함되는지 확인
-                                if is_target_ext {
+                                if is_std {
                                     const EXCLUSIONS: &[&str] = &["_", "INIT", "복사본"];
                                     p.file_name()
                                      .and_then(|name| name.to_str())
@@ -294,9 +385,100 @@ pub fn start_file_watcher<R: Runtime>(
                         if should_rescan {
                             match get_base_std_files(&dir_to_watch) {
                                 Ok(filtered_files) => {
-                                    let payload = FileNamesPayload { data: filtered_files, };
+                                    let payload = BaseFilePayload { data: filtered_files, };
 
                                     if let Err(e) = app_handle.emit("onUpdateBaseStdFiles", payload) {
+                                        eprintln!("필터링된 파일 목록 이벤트 전송 오류: {:?}", e);
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("디렉토리 파일 검사 오류: {:?}", e);
+                                }
+                            }
+                        }
+                    } else {
+                        println!("파일 이벤트 채널이 닫혀서 감시 태스크 종료");
+                        break;
+                    }
+                },
+                // 2. 외부에서 oneshot 채널로 종료 신호가 도착함
+                _ = &mut shutdown_rx => {
+                    println!("종료 신호 수신: 파일 감시 태스크 종료");
+                    break;
+                }
+            }
+        }
+    });
+
+    Ok(handle)
+}
+
+pub fn start_case_std_watcher<R: Runtime>(
+    app_handle: AppHandle<R>,
+    path: PathBuf,
+    case_name: String,
+    mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
+) -> Result<tauri::async_runtime::JoinHandle<()>> {
+    // 💡 tokio::sync::mpsc에서 온 mpsc::channel을 사용합니다.
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Event>(100);
+    let dir_to_watch = path.clone();
+
+    // Watcher 설정
+    let mut watcher = recommended_watcher(move |res: notify::Result<Event>| {
+        if let Ok(event) = res {
+            // tx.blocking_send는 tokio::sync::mpsc::Sender가 제공합니다.
+            if tx.blocking_send(event).is_err() {
+                eprintln!("파일 변경 이벤트 전송 실패: 수신자 드롭됨");
+            }
+        } else if let Err(e) = res {
+            eprintln!("파일 감시 오류: {:?}", e);
+        }
+    })?;
+
+    // 감시 시작 (재귀적 감시)
+    watcher.watch(&path, RecursiveMode::Recursive)?;
+    let handle = tauri::async_runtime::spawn(async move {
+        let _watcher_guard = watcher;
+
+        loop {
+            // 이벤트 수신과 종료 신호 수신을 동시에 대기
+            tokio::select! {
+                // 1. 파일 변경 이벤트가 도착함 (rx.recv()는 tokio::sync::mpsc::Receiver의 메서드)
+                event = rx.recv() => {
+                    if let Some(event) = event {
+                        let mut should_rescan = false;
+                        let is_relevant_kind = matches!(event.kind, EventKind::Create(_) | EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(RenameMode::To)));
+                        if is_relevant_kind {
+                            should_rescan = event.paths.iter().any(|p| {
+                                // 파일 확장자가 .stt 또는 .std 인지 확인
+                                let is_effective_ext = p.extension()
+                                    .and_then(|ext| ext.to_str())
+                                    .map_or(false, |ext| {
+                                        ext.eq_ignore_ascii_case("STD") | ext.eq_ignore_ascii_case("txt")
+                                    });
+
+                                if is_effective_ext {
+                                    let is_case = p.file_name()
+                                        .and_then(|name| name.to_str())
+                                        .map_or(false, |name_str| name_str.contains(&case_name));
+
+                                    const EXCLUSIONS: &[&str] = &["복사본"];
+                                    let is_excluded = p.file_name()
+                                        .and_then(|name| name.to_str())
+                                        .map_or(false, |name_str| EXCLUSIONS.iter().all(|&exc| !name_str.contains(exc)));
+
+                                    is_case && is_excluded
+                                } else {
+                                    false
+                                }
+                            });
+                        }
+                        if should_rescan {
+                            match get_case_std_files(&dir_to_watch, case_name.clone()) {
+                                Ok(case_info) => {
+                                    let payload = CaseFilePayload { data: case_info, };
+
+                                    if let Err(e) = app_handle.emit("onUpdateCaseStdFiles", payload) {
                                         eprintln!("필터링된 파일 목록 이벤트 전송 오류: {:?}", e);
                                     }
                                 }

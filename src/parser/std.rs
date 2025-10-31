@@ -89,10 +89,10 @@ pub fn parsing_std(text: String) -> Result<Value> {
     let mut sections: HashMap<usize, Section> = HashMap::new();
 
     let mut reference_loads: HashMap<usize, PrimiryLoad> = HashMap::new();
-    let mut ref_load_index: usize = 0;
+    let mut ref_load_id: usize = 0;
 
     let mut load_case_details: HashMap<usize, PrimiryLoad> = HashMap::new();
-    let mut load_case_index: usize = 0;
+    let mut load_case_id: usize = 0;
 
     let mut load_item_type: Option<String> = None;
 
@@ -280,14 +280,21 @@ pub fn parsing_std(text: String) -> Result<Value> {
                 }
                 let type_ = _captures.name("type").map(|m| m.as_str()).unwrap_or("");
                 let title = _captures.name("title").map(|m| m.as_str()).unwrap_or("");
+                let id_str = key
+                    .strip_prefix("R") // "R" 접두사를 제거합니다.
+                    .unwrap_or(key); // "R"이 없으면 원래 key를 사용합니다.
+
+                let id = id_str
+                    .parse::<usize>()
+                    .map_err(|e| anyhow!("id parsing err1 {:#?}: {:#?}", key, e))?;
                 let ref_load = PrimiryLoad {
-                    id: json!(key.chars().skip(1).collect::<String>()),
+                    id: json!(id),
                     r#type: PrimiryLoadType::from_str(json!(type_)).as_code(),
                     title: json!(title),
                     children: vec![],
                 };
-                reference_loads.insert(ref_load_index + 1, ref_load);
-                ref_load_index = reference_loads.len();
+                reference_loads.insert(id, ref_load);
+                ref_load_id = id;
 
                 load_item_type = None;
             }
@@ -300,7 +307,7 @@ pub fn parsing_std(text: String) -> Result<Value> {
                 let mut parsed = load_item_parser(&li_type, &line);
                 if let Ok(ref mut load_item) = parsed {
                     // load_item.id = json!(load_item_index);
-                    let parent_opt = reference_loads.get_mut(&ref_load_index);
+                    let parent_opt = reference_loads.get_mut(&ref_load_id);
                     if let Some(parent) = parent_opt {
                         let item_id = parent.children.len();
                         load_item.id = json!(item_id);
@@ -317,14 +324,17 @@ pub fn parsing_std(text: String) -> Result<Value> {
                 }
                 let type_ = _captures.name("type").map(|m| m.as_str()).unwrap_or("");
                 let title = _captures.name("title").map(|m| m.as_str()).unwrap_or("");
+                let id = key
+                    .parse::<usize>()
+                    .map_err(|e| anyhow!("id parsing err2 {:#?}: {:#?}", key, e))?;
                 let load_case = PrimiryLoad {
-                    id: json!(key),
+                    id: json!(id),
                     r#type: PrimiryLoadType::from_str(json!(type_)).as_code(),
                     title: json!(title),
                     children: vec![],
                 };
-                load_case_details.insert(load_case_index + 1, load_case);
-                load_case_index = load_case_details.len();
+                load_case_details.insert(id, load_case);
+                load_case_id = id;
 
                 load_item_type = None;
             }
@@ -336,7 +346,7 @@ pub fn parsing_std(text: String) -> Result<Value> {
             if let Some(ref li_type) = load_item_type {
                 let mut parsed = load_item_parser(&li_type, &line);
                 if let Ok(ref mut load_item) = parsed {
-                    let parent_opt = load_case_details.get_mut(&load_case_index);
+                    let parent_opt = load_case_details.get_mut(&load_case_id);
                     if let Some(parent) = parent_opt {
                         let item_id = parent.children.len();
                         load_item.id = json!(item_id);
@@ -383,6 +393,8 @@ pub fn parsing_std(text: String) -> Result<Value> {
     };
 
     Ok(json!({
+        "nodes":nodes,
+        "beams":beams,
         "loadings":loadings,
         "specifications":specifications,
         "properties": {

@@ -2,7 +2,12 @@ use anyhow::{Context, Result, anyhow, bail};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::{Value, json};
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    fs::{File, read_to_string},
+    io::BufReader,
+    path::Path,
+};
 
 use crate::bindings::{
     Axis, ConcentratedForce, FloorLoadGroup, LoadItemAttribute, LoadItemObj, LoadItemType,
@@ -309,7 +314,7 @@ pub fn parse_member_load(s: &str) -> Result<LoadItemObj> {
         .get(5)
         .and_then(|m| m.as_str().parse().ok())
         .unwrap_or(0.0);
-    let mut name = format!("{} {} {} {}", load_type, direction, d1, d2);
+    let mut name = format!("{} {} {} {} {}", load_type, &cap[1], load, d1, d2);
 
     let attribute = match load_type {
         "CON" => json!(ConcentratedForce {
@@ -550,4 +555,21 @@ pub fn parse_wind_load(s: &str) -> Result<LoadItemObj> {
             "height":height
         }),
     })
+}
+pub fn counting_section_property_from_std(file_path: &Path) -> Result<usize> {
+    // 1. 파일 전체 내용을 String으로 한 번에 읽어옵니다.
+    // 실패 시 anyhow를 사용하여 에러를 처리하고 즉시 반환합니다.
+    let content = read_to_string(file_path)
+        .map_err(|e| anyhow!("Failed to read file {}: {}", file_path.display(), e))?;
+
+    let regex = &*REGEX_SECTION;
+
+    // 2. 읽어온 String의 라인들을 반복하고 정규식 매칭 개수를 셉니다.
+    let match_count = content
+        .lines() // String을 라인 단위로 분할하는 이터레이터를 생성합니다.
+        .filter(|line| regex.is_match(line)) // 각 라인에 정규식 매칭을 시도합니다.
+        .count(); // 매칭된 라인의 개수를 셉니다.
+
+    // 3. 최종 개수를 반환합니다.
+    Ok(match_count)
 }

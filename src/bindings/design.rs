@@ -138,3 +138,11 @@ impl MemberSteelDesignResult {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct CaseInfo {
+    pub name: String,
+    pub weight: f64,
+    pub section_count: usize,
+    pub is_file: bool
+}

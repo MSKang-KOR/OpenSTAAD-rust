@@ -81,24 +81,24 @@ impl OpenStaad {
         Ok(instance)
     }
     // pub fn new_by_activated() -> Result<Self> {
-    //     let com_context = Arc::new(ComContext::new()?);
-    //     let dispatch = get_active_object()?;
-    //     let id_var = unsafe { invoke_method(&dispatch, "GetProcessId", &mut [])? };
-    //     let id = unsafe { VariantToInt32(&id_var as *const VARIANT)? as u32 };
+    //      let com_context = Arc::new(ComContext::new()?);
+    //      let dispatch = get_active_object()?;
+    //      let id_var = unsafe { invoke_method(&dispatch, "GetProcessId", &mut [])? };
+    //      let id = unsafe { VariantToInt32(&id_var as *const VARIANT)? as u32 };
 
-    //     let instance = Self {
-    //         id,
-    //         root: Some(Arc::new(Root::new(dispatch))),
-    //         command: None,
-    //         design: None,
-    //         geometry: None,
-    //         load: None,
-    //         output: None,
-    //         property: None,
-    //         support: None,
-    //         _com_context: Some(com_context),
-    //     };
-    //     Ok(instance)
+    //      let instance = Self {
+    //          id,
+    //          root: Some(Arc::new(Root::new(dispatch))),
+    //          command: None,
+    //          design: None,
+    //          geometry: None,
+    //          load: None,
+    //          output: None,
+    //          property: None,
+    //          support: None,
+    //          _com_context: Some(com_context),
+    //      };
+    //      Ok(instance)
     // }
 
     pub fn new_by_pid(pid: u32) -> Result<Self> {
@@ -220,15 +220,18 @@ fn initialize(exe_path: String, std_path: String) -> Result<(u32, IDispatch)> {
     let pid = spawn_hidden_process(&exe_path, &std_path)?;
     info!("Started STAAD.Pro process with PID: {}", pid);
 
-    info!("Waiting for STAAD.Pro process to initialize...");
-    thread::sleep(Duration::from_millis(5000));
-
     let mut attempts = 0;
-    let max_attempts = 5;
+    // 최대 시도 횟수 증가 (총 50초 대기)
+    let max_attempts = 10; 
+    // 재시도 사이의 대기 시간 증가 (5초)
+    let sleep_delay_ms = 5000;
+    // 창 숨김 확인 간격 (100ms)
+    let hide_check_ms = 100;
+
     loop {
         attempts += 1;
 
-        // 먼저 ROT 방식 시도
+        // 1. ROT 방식 시도
         match find_staad_by_process_id(pid) {
             Ok(dispatch) => {
                 info!("Success to connect Staad.Pro with pid {} via ROT", pid);
@@ -237,18 +240,29 @@ fn initialize(exe_path: String, std_path: String) -> Result<(u32, IDispatch)> {
             }
             Err(e) => {
                 if attempts > max_attempts {
+                    // 최대 시도 횟수 초과 시 프로세스 강제 종료
                     let _ = std::process::Command::new("taskkill")
                         .args(&["/PID", pid.to_string().as_str()])
                         .spawn()?;
                     bail!(
-                        "Staas.Pro가 정상적으로 실행되지 않았거나 STD 파일을 열 수 없어 종료합니다."
+                        "Staas.Pro가 정상적으로 실행되지 않았거나 STD 파일을 열 수 없어 종료합니다. (최대 시도 횟수 초과)"
                     );
                 }
+                
                 info!(
-                    "ROT approach failed: {}. Trying CoCreateInstance approach...",
-                    e
+                    "ROT approach failed: {}. Retrying in {} seconds (Attempt {}/{})..",
+                    e, sleep_delay_ms / 1000, attempts, max_attempts
                 );
-                thread::sleep(Duration::from_millis(3000));
+                
+                // 2. 재시도 대기 + 창 숨김 반복 (가장 중요한 수정 부분)
+                // 다음 ROT 시도까지 기다리는 전체 시간 동안, 창 숨김을 끊임없이 반복하여
+                // 지연된 메인 UI 창의 출현을 즉시 막습니다.
+                let retry_wait_end = std::time::Instant::now() + Duration::from_millis(sleep_delay_ms);
+                while std::time::Instant::now() < retry_wait_end {
+                    hide_process_windows(pid);
+                    // 아주 짧게 대기하여 시스템에 부하를 줄이고 새 창이 생성될 기회를 줍니다.
+                    thread::sleep(Duration::from_millis(hide_check_ms)); 
+                }
             }
         }
     }
@@ -285,8 +299,8 @@ fn get_active_object() -> Result<IDispatch> {
     }
 
     // let openstaad_app = unsafe {
-    //     CoCreateInstance(&clsid, None, CLSCTX_LOCAL_SERVER)
-    //         .map_err(|e| anyhow!("CoCreateInstance failed: {}", e))?
+    //      CoCreateInstance(&clsid, None, CLSCTX_LOCAL_SERVER)
+    //          .map_err(|e| anyhow!("CoCreateInstance failed: {}", e))?
     // };
     match ppunk {
         Some(v) => {
@@ -359,7 +373,7 @@ fn is_staad_object_with_pid(_dispatch: &IDispatch, _target_pid: u32) -> Result<b
         match current_pid_result {
             Ok(var) => {
                 if let Ok(cur_pid) = VariantToInt32(&var as *const VARIANT) {
-                    info!("TargetPid: {}, CurrentPid: {}", _target_pid, cur_pid);
+                    // info!("TargetPid: {}, CurrentPid: {}", _target_pid, cur_pid);
                     return Ok(cur_pid as u32 == _target_pid);
                 } else {
                     warn!("PID를 추출할 수 없는 VARIANT: {:#?}", var);
@@ -410,6 +424,7 @@ pub fn waiting(dispatch: &IDispatch) -> Result<bool> {
 /// Spawns a hidden process using Windows CreateProcessW API
 fn spawn_hidden_process(exe_path: &str, std_path: &str) -> Result<u32> {
     // Build command line with arguments
+    // /s 옵션은 STAAD.Pro를 가능한 한 숨김 모드로 실행하도록 시도합니다.
     let command_line = format!("\"{}\" \"{}\" /s", exe_path, std_path);
     let mut command_line_wide: Vec<u16> = OsStr::new(&command_line)
         .encode_wide()
@@ -419,13 +434,15 @@ fn spawn_hidden_process(exe_path: &str, std_path: &str) -> Result<u32> {
     // Initialize STARTUPINFOW with hidden window settings
     let mut startup_info = STARTUPINFOW {
         cb: mem::size_of::<STARTUPINFOW>() as u32,
+        // wShowWindow를 사용하기 위해 dwFlags: STARTF_USESHOWWINDOW 설정
         dwFlags: STARTF_USESHOWWINDOW,
+        wShowWindow: SW_HIDE.0 as u16, 
         ..unsafe { mem::zeroed() }
     };
 
     let mut process_info = unsafe { mem::zeroed::<PROCESS_INFORMATION>() };
 
-    // Create process with no window
+    // Create process
     unsafe {
         CreateProcessW(
             None,
@@ -444,22 +461,22 @@ fn spawn_hidden_process(exe_path: &str, std_path: &str) -> Result<u32> {
         let pid = process_info.dwProcessId;
         info!("Process created successfully. PID: {}", pid);
 
-        // Verify process is running
-        thread::sleep(Duration::from_millis(500));
+        // 프로세스 시작 직후 한 번 숨김 시도 (보험용)
+        thread::sleep(Duration::from_millis(100));
+        hide_process_windows(pid);
 
+
+        // 프로세스가 실제로 실행 중인지 확인
         let mut exit_code = 0u32;
         if GetExitCodeProcess(process_info.hProcess, &mut exit_code).is_ok() {
             if exit_code == STILL_ACTIVE.0 as u32 {
-                info!("Process {} is running successfully", pid);
+                info!("Process {} is confirmed running", pid);
             } else {
                 warn!("Process {} exited with code: {}", pid, exit_code);
             }
         } else {
             warn!("Failed to check process status for PID: {}", pid);
         }
-
-        // Hide all windows belonging to this process
-        hide_process_windows(pid);
 
         // Clean up handles
         let _ = CloseHandle(process_info.hProcess);
@@ -485,8 +502,8 @@ unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> B
         GetWindowThreadProcessId(hwnd, Some(&mut window_pid));
 
         if window_pid == target_pid {
+            // SW_HIDE로 창을 완전히 숨깁니다.
             ShowWindow(hwnd, SW_HIDE);
-            info!("Hidden window for PID: {}", target_pid);
         }
     }
 

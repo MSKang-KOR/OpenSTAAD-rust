@@ -1025,7 +1025,6 @@ pub fn analyze(openstaad: &mut OpenStaad, handle: AppHandle) -> Result<Value> {
         "GetAnalysisStatus",
         &[std_file_path.to_string().into()],
     )?;
-    println!("{:#?}", status);
 
     // json!(AnalysisStatus::from(code).as_str())
     Ok(json!(""))
@@ -1116,6 +1115,7 @@ pub fn open_staad_file(openstaad: &mut OpenStaad, file_name_val: Value) -> Resul
         .to_str()
         .ok_or(anyhow!("open_staad_file: Fail path to str"))?
         .to_string();
+    println!("{:#?}", path);
     let _ = execute_method(&root, "OpenSTAADFile", &[path.into()])?;
     let mut attempts = 0;
     let max_attempts = 20;
@@ -1137,7 +1137,6 @@ pub fn close_staad_file(openstaad: &mut OpenStaad) -> Result<bool> {
     let _root = openstaad.get_root()?;
     let root = Staad::Root(_root);
     let _ = execute_method(&root, "CloseSTAADFile", &[])?;
-    // println!("isEmptyFile: {:#?}", file_name == json!(""));
     let mut attempts = 0;
     let max_attempts = 10;
     loop {
